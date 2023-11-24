@@ -228,4 +228,12 @@ dependencies {
     androidTestImplementation "androidx.test:rules:$test_version"
     androidTestImplementation "androidx.test.espresso:espresso-core:3.5.1"
     testImplementation "org.robolectric:robolectric:4.8"
+
+    // QUIC Stuff
+    implementation ("tech.kwik:kwik:0.8.3") {
+        exclude group: "at.favre.lib"
+        exclude group: "org.glassfish"
+        exclude group: "tech.kwik"
+        exclude group: "commons-cli"
+    }
 }
