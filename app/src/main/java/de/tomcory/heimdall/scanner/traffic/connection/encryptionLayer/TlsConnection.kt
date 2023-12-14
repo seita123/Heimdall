@@ -888,7 +888,7 @@ class TlsConnection(
         NEW,
 
         /**
-         * Server-facing SSLEngine initialisedand TLS handshake in progress.
+         * Server-facing SSLEngine initialised and TLS handshake in progress.
          */
         SERVER_HANDSHAKE,
 

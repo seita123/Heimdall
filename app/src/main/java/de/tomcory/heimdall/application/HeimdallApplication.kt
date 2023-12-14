@@ -9,7 +9,9 @@ import de.tomcory.heimdall.persistence.database.HeimdallDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import timber.log.Timber
+import java.security.Security
 
 class HeimdallApplication : Application() {
 
@@ -45,5 +47,10 @@ class HeimdallApplication : Application() {
 
     companion object {
         const val CHANNEL_ID = "de.tomcory.heimdall.ui.notification.CHANNEL"
+
+//        init {
+//            Security.removeProvider("BC") // remove the legacy Android-specific 'BC' provider
+//            Security.addProvider(BouncyCastleProvider()) // add the real BC provider
+//        }
     }
 }

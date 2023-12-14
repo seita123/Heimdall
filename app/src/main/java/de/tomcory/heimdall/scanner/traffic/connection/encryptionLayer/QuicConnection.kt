@@ -2,12 +2,29 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer
 
 import de.tomcory.heimdall.scanner.traffic.components.ComponentManager
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection
+import de.tomcory.heimdall.scanner.traffic.mitm.CertificateHelper
+import de.tomcory.heimdall.scanner.traffic.mitm.SubjectAlternativeNameHolder
+import de.tomcory.heimdall.util.ByteUtils
 import net.luminis.quic.QuicClientConnection
-import net.luminis.quic.core.QuicClientConnectionImpl
+import net.luminis.quic.core.QuicConnectionImpl
+import net.luminis.quic.crypto.CryptoStream
+import net.luminis.quic.server.ServerConnectionImpl
+import net.luminis.tls.TlsConstants
+import net.luminis.tls.env.PlatformMapping
+import net.luminis.tls.handshake.CertificateMessage
+import net.luminis.tls.handshake.CertificateVerifyMessage
+import net.luminis.tls.handshake.ClientHello
+import net.luminis.tls.handshake.ClientMessageSender
+import net.luminis.tls.handshake.FinishedMessage
+import net.luminis.tls.handshake.TlsClientEngine
+import net.luminis.tls.handshake.TlsEngine
+import okhttp3.Handshake
 import org.pcap4j.packet.Packet
 import timber.log.Timber
+import java.io.IOException
 import java.net.InetAddress
-import java.net.URL
+import java.net.URI
+import java.security.cert.X509Certificate
 
 
 class QuicConnection(
@@ -37,11 +54,28 @@ class QuicConnection(
     // Secrets for initial encryption
     private var initialSecret: ByteArray? = null
 
+    private var serverFacingQuicConnection: QuicClientConnection? = null
+    private var clientFacingQuicConnection: ServerConnectionImpl? = null
 
+    var serverCertificate: X509Certificate? = null
+
+    private val outboundCache = mutableListOf<ByteArray>()
+    private var remainingOutboundBytes = 0
+
+    private val inboundCache = mutableListOf<ByteArray>()
+    private var remainingInboundBytes = 0
+
+    private var outboundSnippet: ByteArray? = null
+
+    private var inboundSnippet: ByteArray? = null
+
+    ////////////////////////////////////////////////////////////////////////
+    ///// Inherited methods ///////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
 
     override fun unwrapOutbound(payload: ByteArray) { // Not in use at the moment
 
-        processPackets(payload, doMitm)
+        processRecord(payload, doMitm)
 
         //TODO: implement
         passOutboundToAppLayer(payload)
@@ -49,7 +83,7 @@ class QuicConnection(
 
     override fun unwrapOutbound(packet: Packet) { // This one is being used
         //TODO: implement
-        processPackets(packet.rawData, true)
+        processRecord(packet.rawData, true)
 
         passOutboundToAppLayer(packet)
     }
@@ -69,7 +103,128 @@ class QuicConnection(
         transportLayer.wrapInbound(payload)
     }
 
-    private fun processPackets(record: ByteArray, isOutbound: Boolean) {
+    ////////////////////////////////////////////////////////////////////////
+    ///// Traffic handler methods /////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
+
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    private fun handleOutboundRecord(record: ByteArray, recordType: RecordType){
+        // update the doMitm flag if the connection is marked for passthroughs
+        doMitm = doMitm && !(transportLayer.appId?.let { componentManager.tlsPassthroughCache.get(it, hostname) } ?: false) //Todo: anpassen auf QUIC!
+
+        // if we don't want to MITM, we can hand the unprocessed record straight to the application layer
+        if (!doMitm) {
+            passOutboundToAppLayer(record)
+            return
+        }
+
+        when(recordType){
+            RecordType.INITIAL -> {
+                // createInitialSecrets(record)
+                createQUICClient(record)
+//                createServerTlsEngine(record)
+            }
+            else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
+        }
+
+    }
+
+
+    private fun handleInboundRecord(record: ByteArray, recordType: RecordType){
+
+        // if we don't want to MITM, we can hand the unprocessed record straight to the application layer
+        if (!doMitm) {
+            passOutboundToAppLayer(record)
+            return
+        }
+
+        when(recordType){
+            RecordType.INITIAL -> {
+                createQuicServer(record)
+            }
+            else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    ///// SSLEngine setup methods /////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
+
+    private fun createInitialSecrets(record: ByteArray){
+        // get Destination ID for generating the pseudorandom key (PRK) with the initial salt
+        val destIDlength = record[5].toUByte().toInt()
+        val destIDRange = IntRange(6, 6 + destIDlength - 1)
+        // val destId = record.slice(destIDRange).toByteArray() // check if this works!
+
+        // destIdBytes.forEach { destID.plus(it.toUByte().toString()) }
+
+        // val destID = destIdBytes.joinToString("") { it.toString(radix = 16).padStart(2, '0') }
+
+//        val hkdf = HKDF.fromHmacSha256()
+//
+//        initialSecret = hkdf.extract(initialSaltV1, destId)
+
+    }
+
+    private fun createQUICClient(record: ByteArray){
+
+        // Enables the use of KWIK for Android
+        PlatformMapping.usePlatformMapping(PlatformMapping.Platform.Android);
+
+        // Establish and adjust the QuicClientConnection Builder
+        val connectionBuilder = QuicClientConnection.newBuilder()
+        val addr = InetAddress.getByName(hostname)
+        val host = addr.hostName
+//        val url = URL(host)
+        val address = "//" + host + ":" + transportLayer.remotePort
+        val uri = URI(address)
+
+        connectionBuilder.uri(uri)
+        connectionBuilder.noServerCertificateCheck()
+        connectionBuilder.applicationProtocol("h3")
+
+
+        // build the server facing QUIC connection
+        serverFacingQuicConnection = connectionBuilder.build()
+
+        // does the handshake process
+        try {
+            serverFacingQuicConnection?.connect()
+
+            Timber.d("quic$id Server facing QUIC connection established.")
+            serverCertificate = serverFacingQuicConnection?.serverCertificateChain?.get(0)
+
+        }catch (e: Exception){
+            Timber.e("quic$id Error while establishing the server facing QUIC connection")
+            Timber.e(e)
+        }
+
+
+    }
+
+
+
+    private fun createQuicServer(record: ByteArray){
+
+        val commonName = serverCertificate?.let { componentManager.mitmManager.getCommonName(it) }
+        val san = SubjectAlternativeNameHolder()
+        san.addAll(serverCertificate?.subjectAlternativeNames)
+
+//        val ks = CertificateHelper.createServerCertificate(
+//            commonName,
+//            san,
+//            authority,
+//            caCert,
+//            caPrivateKey
+//        )
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    ///// TLS record handler, parser, and assembly methods ////////////////
+    //////////////////////////////////////////////////////////////////////
+
+    private fun processRecord(record: ByteArray, isOutbound: Boolean) {
 
         // check which Version of QUIC is being used
         val quicVersion = record[1].toUByte().toInt() shl 32 or record[2].toUByte().toInt() shl 16 or record[3].toUByte().toInt() shl 8 or record[4].toUByte().toInt()
@@ -86,7 +241,105 @@ class QuicConnection(
             if(isOutbound) {
                 handleOutboundRecord(record, recordType)
             } else {
-                // handleInboundRecord(record, recordType)
+                handleInboundRecord(record, recordType)
+            }
+        }
+
+    }
+
+    private fun prepareRecords(payload: ByteArray, isOutbound: Boolean){
+
+        var remainingBytes = if(isOutbound) remainingOutboundBytes else remainingInboundBytes
+        val cache = if(isOutbound) outboundCache else inboundCache
+
+        if(remainingBytes > 0) {
+            // the payload is added to the overflow
+
+            var attachedPayloadStart = 0
+            // check whether there are additional records appended to the current payload and split them off (we'll handle them separately below)
+            val currentPayload = if(remainingBytes < payload.size) {
+                attachedPayloadStart = remainingBytes
+                payload.slice(0 until attachedPayloadStart).toByteArray()
+            } else {
+                payload
+            }
+
+            // add the payload to the cache
+            cache.add(currentPayload)
+            remainingBytes -= currentPayload.size
+
+            if(isOutbound)
+                remainingOutboundBytes = remainingBytes
+            else
+                remainingInboundBytes = remainingBytes
+
+            // if there are still overflow bytes remaining, do nothing and await the next payload
+            if(remainingBytes > 0) {
+                return
+            }
+
+            // otherwise combine the cached parts into one record and clear the cache
+            val combinedRecord = cache.reduce { acc, x -> acc + x }
+            cache.clear()
+
+            // process the reassembled record
+            processRecord(combinedRecord, isOutbound)
+
+            // if there are additional payloads attached, process them as well
+            if(payload.size > currentPayload.size) {
+                val attachedPayload = payload.slice(attachedPayloadStart until payload.size).toByteArray()
+                //Timber.d("%s Processing attached payload", id)
+                prepareRecords(attachedPayload, isOutbound)
+            }
+
+        } else {
+            // make sure that we have a valid TLS record...
+            val recordType = parseRecordType(payload)
+
+            if(recordType == RecordType.INVALID) {
+                Timber.e("tls$id Invalid QUIC record type: ${recordType}")
+                Timber.e("tls$id ${ByteUtils.bytesToHex(payload)}")
+                return
+            }
+
+            // ... which must at least comprise a TLS header with 5 bytes
+            if(payload.size < 5) {
+                //Timber.w("tls$id Got a tiny snippet of a TLS record (${payload.size} bytes), stashing it and awaiting the rest")
+                if(isOutbound) {
+                    outboundSnippet = payload
+                } else {
+                    inboundSnippet = payload
+                }
+                return
+            }
+
+            val statedLength = payload[3].toUByte().toInt() shl 8 or payload[4].toUByte().toInt()
+            val actualLength = payload.size - 5
+
+            // if the stated record length is larger than the payload length, we go into overflow mode and cache the payload
+            if(statedLength > actualLength) {
+                cache.add(payload)
+                remainingBytes = statedLength - actualLength
+
+                if(isOutbound) {
+                    remainingOutboundBytes = remainingBytes
+                } else {
+                    remainingInboundBytes = remainingBytes
+                }
+
+            } else if(statedLength < actualLength) {
+                val currentRecord = payload.slice(0 until statedLength + 5).toByteArray()
+                val attachedPayload = payload.slice(statedLength + 5 until payload.size).toByteArray()
+
+                // process the extracted record...
+                processRecord(currentRecord, isOutbound)
+
+                // ...and when that is done, handle the remaining attached payload
+                prepareRecords(attachedPayload, isOutbound)
+
+            } else {
+                // if the stated record length matches the payload length, we can just handle the record as-is
+                processRecord(payload, isOutbound)
             }
         }
 
@@ -113,57 +366,15 @@ class QuicConnection(
         }
     }
 
-    @OptIn(ExperimentalUnsignedTypes::class)
-    private fun handleOutboundRecord(record: ByteArray, recordType: RecordType){
-        // update the doMitm flag if the connection is marked for passthroughs
-        doMitm = doMitm && !(transportLayer.appId?.let { componentManager.tlsPassthroughCache.get(it, hostname) } ?: false)
-
-        // if we don't want to MITM, we can hand the unprocessed record straight to the application layer
-        if (!doMitm) {
-            passOutboundToAppLayer(record)
-            return
-        }
-
-        when(recordType){
-            RecordType.INITIAL -> {
-                createInitialSecrets(record)
-                createQUICClient(record)
-            }
-            else -> println("Not an initial RecordType")
-        }
+    ////////////////////////////////////////////////////////////////////////
+    ///// Utility methods /////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
 
 
-    }
 
-    private fun createInitialSecrets(record: ByteArray){
-        // get Destination ID for generating the pseudorandom key (PRK) with the initial salt
-        val destIDlength = record[5].toUByte().toInt()
-        val destIDRange = IntRange(6, 6 + destIDlength - 1)
-        // val destId = record.slice(destIDRange).toByteArray() // check if this works!
 
-        // destIdBytes.forEach { destID.plus(it.toUByte().toString()) }
 
-        // val destID = destIdBytes.joinToString("") { it.toString(radix = 16).padStart(2, '0') }
 
-//        val hkdf = HKDF.fromHmacSha256()
-//
-//        initialSecret = hkdf.extract(initialSaltV1, destId)
-
-    }
-
-    private fun createQUICClient(record: ByteArray){
-
-        // Try über Builder - wäre nice aber ich komm nicht auf die URI von der IP
-        val connectionBuilder = QuicClientConnection.newBuilder()
-        val addr = InetAddress.getByName(hostname)
-        val host = addr.hostName
-        val url = URL(host)
-        connectionBuilder.uri(url.toURI())
-
-        // Versuch direkt die Klasse QuicClientConnectionImpl zu instantiieren
-        // var clientConnection = QuicClientConnectionImpl(hostname, transportLayer.remotePort, "h3", 10000, )
-
-    }
 
 }
 

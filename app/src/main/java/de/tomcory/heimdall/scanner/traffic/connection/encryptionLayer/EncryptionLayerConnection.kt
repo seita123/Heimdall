@@ -77,7 +77,8 @@ abstract class EncryptionLayerConnection(
          */
         fun getInstance(id: Long, transportLayer: TransportLayerConnection, componentManager: ComponentManager, rawPayload: ByteArray): EncryptionLayerConnection {
             return if (detectTls(rawPayload)) {
-                TlsConnection(id, transportLayer, componentManager)
+//                TlsConnection(id, transportLayer, componentManager) // todo: replace when done
+                PlaintextConnection(id, transportLayer, componentManager)
             } else if(detectQuic(rawPayload)) {
                 QuicConnection(id, transportLayer, componentManager)
             } else {
