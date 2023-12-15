@@ -1,13 +1,14 @@
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer
 
 import de.tomcory.heimdall.scanner.traffic.components.ComponentManager
+//import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.UdpConnection
 import de.tomcory.heimdall.scanner.traffic.mitm.SubjectAlternativeNameHolder
 import de.tomcory.heimdall.util.ByteUtils
-import net.luminis.quic.DatagramSocketFactory
-import net.luminis.quic.QuicClientConnection
-import net.luminis.quic.server.ServerConnectionImpl
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.DatagramSocketFactory
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnectionImpl
 import net.luminis.tls.env.PlatformMapping
 import org.pcap4j.packet.Packet
 import timber.log.Timber

@@ -154,6 +154,7 @@ dependencies {
     implementation "androidx.activity:activity-compose:1.8.0"
     implementation "androidx.compose.ui:ui:$compose_version"
     implementation "androidx.compose.ui:ui-tooling-preview:$compose_version"
+    implementation 'com.google.firebase:firebase-crashlytics-buildtools:2.9.9'
     debugImplementation "androidx.compose.ui:ui-tooling:$compose_version"
     debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_version"
     androidTestImplementation "androidx.compose.ui:ui-test-junit4:$compose_version"
@@ -230,10 +231,14 @@ dependencies {
     testImplementation "org.robolectric:robolectric:4.8"
 
     // QUIC Stuff
-    implementation ("tech.kwik:kwik:0.8.3") {
-        exclude group: "at.favre.lib"
-        exclude group: "org.glassfish"
-        exclude group: "tech.kwik"
-        exclude group: "commons-cli"
-    }
+//    implementation ("tech.kwik:kwik:0.8.3") {
+//        exclude group: "at.favre.lib"
+//        exclude group: "org.glassfish"
+//        exclude group: "tech.kwik"
+//        exclude group: "commons-cli"
+//    }
+    implementation "tech.kwik:agent15:1.0.4"
+    implementation "at.favre.lib:hkdf:2.0.0"
+    implementation "org.glassfish:javax.json:1.1.4"
+    implementation "commons-cli:commons-cli:1.4"
 }
