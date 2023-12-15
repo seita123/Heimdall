@@ -2,26 +2,16 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer
 
 import de.tomcory.heimdall.scanner.traffic.components.ComponentManager
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection
-import de.tomcory.heimdall.scanner.traffic.mitm.CertificateHelper
+import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.UdpConnection
 import de.tomcory.heimdall.scanner.traffic.mitm.SubjectAlternativeNameHolder
 import de.tomcory.heimdall.util.ByteUtils
+import net.luminis.quic.DatagramSocketFactory
 import net.luminis.quic.QuicClientConnection
-import net.luminis.quic.core.QuicConnectionImpl
-import net.luminis.quic.crypto.CryptoStream
 import net.luminis.quic.server.ServerConnectionImpl
-import net.luminis.tls.TlsConstants
 import net.luminis.tls.env.PlatformMapping
-import net.luminis.tls.handshake.CertificateMessage
-import net.luminis.tls.handshake.CertificateVerifyMessage
-import net.luminis.tls.handshake.ClientHello
-import net.luminis.tls.handshake.ClientMessageSender
-import net.luminis.tls.handshake.FinishedMessage
-import net.luminis.tls.handshake.TlsClientEngine
-import net.luminis.tls.handshake.TlsEngine
-import okhttp3.Handshake
 import org.pcap4j.packet.Packet
 import timber.log.Timber
-import java.io.IOException
+import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.URI
 import java.security.cert.X509Certificate
@@ -68,6 +58,8 @@ class QuicConnection(
     private var outboundSnippet: ByteArray? = null
 
     private var inboundSnippet: ByteArray? = null
+
+    private var socketFactory: SocketFactoryImpl? = null
 
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
@@ -184,6 +176,8 @@ class QuicConnection(
         connectionBuilder.noServerCertificateCheck()
         connectionBuilder.applicationProtocol("h3")
 
+//        socketFactory = SocketFactoryImpl(transportLayer)
+//        connectionBuilder.socketFactory(socketFactory)
 
         // build the server facing QUIC connection
         serverFacingQuicConnection = connectionBuilder.build()
@@ -416,4 +410,19 @@ private enum class FrameType {
     CONNECTION_CLOSE,
     HANDSHAKE_DONE,
     EXTENSION       // TODO: read up on that one. Maybe denial the use of extension frames.
+}
+
+
+////////////////////////////////////////////////////////////////////////
+///// Socket Factory Implementation ///////////////////////////////////
+//////////////////////////////////////////////////////////////////////
+
+
+class SocketFactoryImpl(transportLayer: TransportLayerConnection) : DatagramSocketFactory{
+
+    var transportLayerUDP: UdpConnection? = transportLayer as? UdpConnection
+    override fun createSocket(destination: InetAddress?): DatagramSocket? {
+        TODO()
+    }
+
 }
