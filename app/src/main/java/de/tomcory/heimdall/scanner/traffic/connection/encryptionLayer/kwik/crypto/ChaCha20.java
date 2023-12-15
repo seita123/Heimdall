@@ -26,7 +26,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 
 import javax.crypto.*;
-import javax.crypto.spec.ChaCha20ParameterSpec;
+//import javax.crypto.spec.ChaCha20ParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
@@ -155,23 +155,23 @@ public class ChaCha20 extends BaseAeadImpl {
             counterBytes[2] = sample[1];
             counterBytes[3] = sample[0];
             int counter = ByteBuffer.wrap(counterBytes).getInt();
-            ChaCha20ParameterSpec chaCha20ParameterSpec = new ChaCha20ParameterSpec(nonce, counter);
+//            ChaCha20ParameterSpec chaCha20ParameterSpec = new ChaCha20ParameterSpec(nonce, counter);
             SecretKeySpec key = new SecretKeySpec(hp, "ChaCha20");
-            hpCipher.init(Cipher.ENCRYPT_MODE, key, chaCha20ParameterSpec);
+//            hpCipher.init(Cipher.ENCRYPT_MODE, key, chaCha20ParameterSpec);
             byte[] mask = hpCipher.doFinal(new byte[]{ 0, 0, 0, 0, 0 });
             return mask;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
             // Inappropriate runtime environment
             throw new QuicRuntimeException(e);
-        } catch (InvalidKeyException e) {
-            // Programming error
-            throw new RuntimeException();
+//        } catch (InvalidKeyException e) {
+//            // Programming error
+//            throw new RuntimeException();
         } catch (BadPaddingException e) {
             throw new RuntimeException();
         } catch (IllegalBlockSizeException e) {
             throw new RuntimeException();
-        } catch (InvalidAlgorithmParameterException e) {
-            throw new RuntimeException();
+//        } catch (InvalidAlgorithmParameterException e) {
+//            throw new RuntimeException();
         }
     }
 }
