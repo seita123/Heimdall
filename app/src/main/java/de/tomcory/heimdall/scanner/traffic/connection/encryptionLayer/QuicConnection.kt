@@ -1,14 +1,15 @@
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer
 
-import de.tomcory.heimdall.scanner.traffic.components.ComponentManager
 //import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
+
+import de.tomcory.heimdall.scanner.traffic.components.ComponentManager
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.DatagramSocketFactory
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnectionImpl
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.UdpConnection
 import de.tomcory.heimdall.scanner.traffic.mitm.SubjectAlternativeNameHolder
 import de.tomcory.heimdall.util.ByteUtils
-import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.DatagramSocketFactory
-import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
-import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnectionImpl
 import net.luminis.tls.env.PlatformMapping
 import org.pcap4j.packet.Packet
 import timber.log.Timber
@@ -16,6 +17,8 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.URI
 import java.security.cert.X509Certificate
+import java.util.concurrent.BlockingQueue
+import java.util.concurrent.LinkedBlockingQueue
 
 
 class QuicConnection(
@@ -48,7 +51,7 @@ class QuicConnection(
     private var serverFacingQuicConnection: QuicClientConnection? = null
     private var clientFacingQuicConnection: ServerConnectionImpl? = null
 
-    var serverCertificate: X509Certificate? = null
+    private var serverCertificate: X509Certificate? = null
 
     private val outboundCache = mutableListOf<ByteArray>()
     private var remainingOutboundBytes = 0
@@ -61,6 +64,7 @@ class QuicConnection(
     private var inboundSnippet: ByteArray? = null
 
     private var socketFactory: SocketFactoryImpl? = null
+
 
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
