@@ -81,7 +81,7 @@ import static net.luminis.tls.util.ByteUtils.bytesToHex;
  */
 public class QuicClientConnectionImpl extends QuicConnectionImpl implements QuicClientConnection, PacketProcessor, TlsStatusEventHandler, FrameProcessor {
 
-    public static final long DEFAULT_CONNECT_TIMEOUT_IN_MILLIS = 10_000;
+    public static final long DEFAULT_CONNECT_TIMEOUT_IN_MILLIS = 10_000; // Todo: reset to 10000
     public static final int DEFAULT_MAX_IDLE_TIMEOUT = 60_000;
     public static final int MIN_MAX_IDLE_TIMEOUT = 10;
     public static final int MIN_RECEIVER_BUFFER_SIZE = 1500;
@@ -307,7 +307,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
         log.info(String.format("Original destination connection id: %s (scid: %s)", bytesToHex(connectionIdManager.getOriginalDestinationConnectionId()), bytesToHex(connectionIdManager.getInitialConnectionId())));
         generateInitialKeys();
 
-        receiver.start();
+//        receiver.start();
         sender.start(connectionSecrets);
         startReceiverLoop();
 
@@ -718,7 +718,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
     protected void terminate() {
         super.terminate();
         handshakeFinishedCondition.countDown();
-        receiver.shutdown();
+//        receiver.shutdown();
         socket.close();
         if (receiverThread != null) {
             receiverThread.interrupt();
@@ -1092,6 +1092,11 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
     @Override
     public boolean isConnected() {
         return connectionState == Status.Connected;
+    }
+
+    @Override
+    public Receiver getReceiver() {
+        return receiver;
     }
 
     protected void trustAnyServerCertificate() {

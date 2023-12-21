@@ -80,6 +80,7 @@ class QuicConnection(
 
     override fun unwrapOutbound(packet: Packet) { // This one is being used
         //TODO: implement
+        println("unwrapOutbound")
         processRecord(packet.rawData, true)
 
         passOutboundToAppLayer(packet)
@@ -87,16 +88,20 @@ class QuicConnection(
 
     override fun unwrapInbound(payload: ByteArray) {
         //TODO: implement
+        println("unwrapInbound")
+        serverFacingQuicConnection?.receiver?.receive(payload)
         passInboundToAppLayer(payload)
     }
 
     override fun wrapOutbound(payload: ByteArray) {
         //TODO: implement
+        println("wrapOutbound")
         transportLayer.wrapOutbound(payload)
     }
 
     override fun wrapInbound(payload: ByteArray) {
         //TODO: implement
+        println("wrapInbound")
         transportLayer.wrapInbound(payload)
     }
 
@@ -165,7 +170,7 @@ class QuicConnection(
     }
 
     private fun createQUICClient(record: ByteArray){
-
+        println("Creating QUIC Client")
         // Enables the use of KWIK for Android
         PlatformMapping.usePlatformMapping(PlatformMapping.Platform.Android);
 

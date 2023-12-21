@@ -44,10 +44,11 @@ public class Receiver {
     private final Logger log;
     private final Consumer<Throwable> abortCallback;
     private final Predicate<DatagramPacket> packetFilter;
-    private final Thread receiverThread;
+//    private final Thread receiverThread;
     private final BlockingQueue<RawPacket> receivedPacketsQueue;
     private volatile boolean isClosing = false;
     private volatile boolean changing = false;
+    private int counter = 0;
 
     public Receiver(DatagramSocket socket, Logger log, Consumer<Throwable> abortCallback) {
         this(socket, log, abortCallback, d -> true);
@@ -59,8 +60,8 @@ public class Receiver {
         this.abortCallback = Objects.requireNonNull(abortCallback);
         this.packetFilter = Objects.requireNonNull(packetFilter);
 
-        receiverThread = new Thread(() -> run(), "receiver");
-        receiverThread.setDaemon(true);
+//        receiverThread = new Thread(() -> run(), "receiver");
+//        receiverThread.setDaemon(true);
         receivedPacketsQueue = new LinkedBlockingQueue<>();
 
         try {
@@ -70,14 +71,14 @@ public class Receiver {
         }
     }
 
-    public void start() {
-        receiverThread.start();
-    }
-
-    public void shutdown() {
-        isClosing = true;
-        receiverThread.interrupt();
-    }
+//    public void start() {
+//        receiverThread.start();
+//    }
+//
+//    public void shutdown() {
+//        isClosing = true;
+//        receiverThread.interrupt();
+//    }
 
     public RawPacket get() throws InterruptedException {
         return receivedPacketsQueue.take();
@@ -109,8 +110,8 @@ public class Receiver {
 
                     if (packetFilter.test(receivedPacket)) {
                         Instant timeReceived = Instant.now();
-                        RawPacket rawPacket = new RawPacket(receivedPacket, timeReceived, counter++);
-                        receivedPacketsQueue.add(rawPacket);
+//                        RawPacket rawPacket = new RawPacket(receivedPacket, timeReceived, counter++);
+//                        receivedPacketsQueue.add(rawPacket);
                     }
                 }
                 catch (SocketTimeoutException timeout) {
@@ -144,6 +145,12 @@ public class Receiver {
             log.error("IOException while receiving datagrams", fatal);
             abortCallback.accept(fatal);
         }
+    }
+
+    public void receive(byte[] receivedPacket){
+        Instant timeReceived = Instant.now();
+        RawPacket rawPacket = new RawPacket(receivedPacket, timeReceived, counter++);
+        receivedPacketsQueue.add(rawPacket);
     }
 
     public void changeAddress(DatagramSocket newSocket) {

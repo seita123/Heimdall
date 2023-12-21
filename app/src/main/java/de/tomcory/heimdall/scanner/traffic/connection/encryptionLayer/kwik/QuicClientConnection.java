@@ -20,6 +20,8 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik;
 
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.receive.Receiver;
+
 import net.luminis.tls.TlsConstants;
 
 import java.io.IOException;
@@ -51,6 +53,8 @@ public interface QuicClientConnection extends QuicConnection {
     List<X509Certificate> getServerCertificateChain();
 
     boolean isConnected();
+
+    Receiver getReceiver();
 
     static Builder newBuilder() {
         return QuicClientConnectionImpl.newBuilder();
