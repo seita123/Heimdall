@@ -21,6 +21,7 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.receive.Receiver;
+import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
 
 import net.luminis.tls.TlsConstants;
 
@@ -137,6 +138,8 @@ public interface QuicClientConnection extends QuicConnection {
         Builder clientCertificateKey(PrivateKey privateKey);
 
         Builder socketFactory(DatagramSocketFactory socketFactory);
+
+        Builder transportLayerConnection(TransportLayerConnection transportLayerConnection);
     }
 
 }

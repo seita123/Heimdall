@@ -36,6 +36,8 @@ class QuicConnection(
         // doMitm = false
     }
 
+    private var connectionState: ConnectionState = ConnectionState.NEW;
+
     private var hostname: String = transportLayer.remoteHost ?: transportLayer.ipPacketBuilder.remoteAddress.hostAddress ?: ""
 
     // Used to derive the initial secret, is fixed to this value for V1 QUIC
@@ -61,8 +63,6 @@ class QuicConnection(
 
     private var inboundSnippet: ByteArray? = null
 
-    private var socketFactory: SocketFactoryImpl? = null
-
 
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
@@ -73,33 +73,33 @@ class QuicConnection(
         processRecord(payload, doMitm)
 
         //TODO: implement
-        passOutboundToAppLayer(payload)
+//        passOutboundToAppLayer(payload)
     }
 
     override fun unwrapOutbound(packet: Packet) { // This one is being used
         //TODO: implement
-        println("unwrapOutbound")
+        println("unwrapOutbound $id")
         processRecord(packet.rawData, true)
 
-        passOutboundToAppLayer(packet)
+//        passOutboundToAppLayer(packet)
     }
 
     override fun unwrapInbound(payload: ByteArray) {
         //TODO: implement
-        println("unwrapInbound")
+        println("unwrapInbound $id")
         serverFacingQuicConnection?.receiver?.receive(payload, hostname, transportLayer.remotePort)
-        passInboundToAppLayer(payload)
+//        passInboundToAppLayer(payload)
     }
 
     override fun wrapOutbound(payload: ByteArray) {
         //TODO: implement
-        println("wrapOutbound")
+        println("wrapOutbound $id")
         transportLayer.wrapOutbound(payload)
     }
 
     override fun wrapInbound(payload: ByteArray) {
         //TODO: implement
-        println("wrapInbound")
+        println("wrapInbound $id")
         transportLayer.wrapInbound(payload)
     }
 
@@ -119,13 +119,13 @@ class QuicConnection(
             return
         }
 
-        when(recordType){
-            RecordType.INITIAL -> {
-                // createInitialSecrets(record)
-                createQUICClient(record)
-//                createServerTlsEngine(record)
+        if(connectionState == ConnectionState.NEW){
+            when(recordType){
+                RecordType.INITIAL -> {
+                    createQUICClient(record)
+                }
+                else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
             }
-            else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
         }
 
     }
@@ -139,12 +139,6 @@ class QuicConnection(
             return
         }
 
-        when(recordType){
-            RecordType.INITIAL -> {
-                createQuicServer(record)
-            }
-            else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -183,9 +177,7 @@ class QuicConnection(
         connectionBuilder.uri(uri)
         connectionBuilder.noServerCertificateCheck()
         connectionBuilder.applicationProtocol("h3")
-
-//        socketFactory = SocketFactoryImpl(transportLayer)
-//        connectionBuilder.socketFactory(socketFactory)
+        connectionBuilder.transportLayerConnection(transportLayer)
 
         // build the server facing QUIC connection
         serverFacingQuicConnection = connectionBuilder.build()
@@ -195,19 +187,22 @@ class QuicConnection(
             serverFacingQuicConnection?.connect()
 
             Timber.d("quic$id Server facing QUIC connection established.")
+            connectionState = ConnectionState.SERVER_ESTABLISHED
+
             serverCertificate = serverFacingQuicConnection?.serverCertificateChain?.get(0)
+
+            createQuicServer()
 
         }catch (e: Exception){
             Timber.e("quic$id Error while establishing the server facing QUIC connection")
             Timber.e(e)
         }
 
-
     }
 
 
 
-    private fun createQuicServer(record: ByteArray){
+    private fun createQuicServer(){
 
         val commonName = serverCertificate?.let { componentManager.mitmManager.getCommonName(it) }
         val san = SubjectAlternativeNameHolder()
@@ -237,7 +232,6 @@ class QuicConnection(
         }
 
         if(record.isNotEmpty()) {
-
             val recordType = parseRecordType(record)
 
             if(isOutbound) {
@@ -396,41 +390,25 @@ private enum class RecordType {
     INDETERMINATE
 }
 
-private enum class FrameType {
-    PADDING,
-    PING,
-    ACK,
-    RESET_STREAM,
-    STOP_SENDING,
-    CRYPTO,
-    NEW_TOKEN,
-    STREAM,
-    MAX_DATA,
-    MAX_STREAM_DATA,
-    MAX_STREAMS,
-    DATA_BLOCKED,
-    STREAM_DATA_BLOCKED,
-    STREAMS_BLOCKED,
-    NEW_CONNECTION_ID,
-    RETIRE_CONNECTION_ID,
-    PATH_CHALLENGE,
-    PATH_RESPONSE,
-    CONNECTION_CLOSE,
-    HANDSHAKE_DONE,
-    EXTENSION       // TODO: read up on that one. Maybe denial the use of extension frames.
+private enum class ConnectionState {
+    /**
+     * Fresh connection, where neither kwik connections is initialised.
+     */
+    NEW,
+
+    /**
+     * Server-facing QUIC handshake complete and session established.
+     */
+    SERVER_ESTABLISHED,
+
+    /**
+     * Client-facing QUIC handshake complete, connection is ready for application data.
+     */
+    CLIENT_ESTABLISHED,
+
+    /**
+     * Connection is closed, either because of a close notification sent by a peer or due to an internal error.
+     */
+    CLOSED
 }
 
-
-////////////////////////////////////////////////////////////////////////
-///// Socket Factory Implementation ///////////////////////////////////
-//////////////////////////////////////////////////////////////////////
-
-
-class SocketFactoryImpl(transportLayer: TransportLayerConnection) : DatagramSocketFactory{
-
-    var transportLayerUDP: UdpConnection? = transportLayer as? UdpConnection
-    override fun createSocket(destination: InetAddress?): DatagramSocket? {
-        TODO()
-    }
-
-}

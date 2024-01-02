@@ -38,6 +38,8 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.strea
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.stream.FlowControl;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.stream.StreamManager;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.tls.QuicTransportParametersExtension;
+import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
+
 import net.luminis.tls.CertificateWithPrivateKey;
 import net.luminis.tls.NewSessionTicket;
 import net.luminis.tls.TlsConstants;
@@ -145,7 +147,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
                                      String proxyHost, Path secretsFile, Integer initialRtt, Integer cidLength,
                                      List<TlsConstants.CipherSuite> cipherSuites,
                                      X509Certificate clientCertificate, PrivateKey clientCertificateKey,
-                                     DatagramSocketFactory socketFactory) throws UnknownHostException, SocketException {
+                                     DatagramSocketFactory socketFactory, TransportLayerConnection transportLayerConnection) throws UnknownHostException, SocketException {
         super(originalVersion, Role.Client, secretsFile, log);
         this.applicationProtocol = applicationProtocol;
         this.connectTimeout = connectTimeout;
@@ -165,7 +167,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
 
         idleTimer = new IdleTimer(this, log);
         sender = new SenderImpl(quicVersion, getMaxPacketSize(), socket, new InetSocketAddress(serverAddress, port),
-                        this, initialRtt, log);
+                        this, initialRtt, log, transportLayerConnection);
         sender.enableAllLevels();
         idleTimer.setPtoSupplier(sender::getPto);
         ackGenerator = sender.getGlobalAckGenerator();
@@ -1152,6 +1154,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
         private DatagramSocketFactory socketFactory;
         private long connectTimeoutInMillis = DEFAULT_CONNECT_TIMEOUT_IN_MILLIS;
         private String applicationProtocol = "";
+        private TransportLayerConnection transportLayerConnection;
 
         @Override
         public QuicClientConnectionImpl build() throws SocketException, UnknownHostException {
@@ -1174,7 +1177,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
             QuicClientConnectionImpl quicConnection =
                     new QuicClientConnectionImpl(host, port, applicationProtocol, connectTimeoutInMillis, customizedConnectionProperties, sessionTicket, Version.of(quicVersion),
                             Version.of(preferredVersion), log, proxyHost, secretsFile, initialRtt, connectionIdLength,
-                            cipherSuites, clientCertificate, clientCertificateKey, socketFactory);
+                            cipherSuites, clientCertificate, clientCertificateKey, socketFactory, transportLayerConnection);
 
             if (omitCertificateCheck) {
                 quicConnection.trustAnyServerCertificate();
@@ -1331,6 +1334,11 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
         @Override
         public Builder socketFactory(DatagramSocketFactory socketFactory) {
             this.socketFactory = socketFactory;
+            return this;
+        }
+
+        public Builder transportLayerConnection(TransportLayerConnection transportLayerConnection){
+            this.transportLayerConnection = transportLayerConnection;
             return this;
         }
     }

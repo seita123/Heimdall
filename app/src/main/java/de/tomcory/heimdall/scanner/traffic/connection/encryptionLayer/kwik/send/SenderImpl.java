@@ -35,6 +35,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packe
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.qlog.QLog;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.recovery.RecoveryManager;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.recovery.RttEstimator;
+import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -108,14 +109,21 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
     private volatile int antiAmplificationLimit = -1;
     private volatile Runnable shutdownHook;
 
+    private TransportLayerConnection transportLayerConnection;
+
+
+    public SenderImpl(VersionHolder version, int maxPacketSize, DatagramSocket socket, InetSocketAddress peerAddress,
+                      QuicConnectionImpl connection, Integer initialRtt, Logger log, TransportLayerConnection transportLayerConnection) {
+        this(Clock.systemUTC(), version, maxPacketSize, socket, peerAddress, connection, initialRtt, log, transportLayerConnection);
+    }
 
     public SenderImpl(VersionHolder version, int maxPacketSize, DatagramSocket socket, InetSocketAddress peerAddress,
                       QuicConnectionImpl connection, Integer initialRtt, Logger log) {
-        this(Clock.systemUTC(), version, maxPacketSize, socket, peerAddress, connection, initialRtt, log);
+        this(Clock.systemUTC(), version, maxPacketSize, socket, peerAddress, connection, initialRtt, log, null);
     }
 
     public SenderImpl(Clock clock, VersionHolder version, int maxPacketSize, DatagramSocket socket, InetSocketAddress peerAddress,
-                      QuicConnectionImpl connection, Integer initialRtt, Logger log) {
+                      QuicConnectionImpl connection, Integer initialRtt, Logger log, TransportLayerConnection transportLayerConnection) {
         this.clock = clock;
         this.maxPacketSize = maxPacketSize;
         this.socket = socket;
@@ -123,6 +131,7 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
         this.connection = connection;
         this.log = log;
         this.qlog = log.getQLog();
+        this.transportLayerConnection = transportLayerConnection;
 
         Arrays.stream(EncryptionLevel.values()).forEach(level -> {
             int levelIndex = level.ordinal();
@@ -416,7 +425,8 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
         DatagramPacket datagram = new DatagramPacket(datagramData, buffer.position(), peerAddress.getAddress(), peerAddress.getPort());
 
         Instant timeSent = clock.instant();
-        socket.send(datagram);
+        transportLayerConnection.wrapOutbound(datagramData);
+        // socket.send(datagram);
         datagramsSent++;
         packetsSent += itemsToSend.size();
         bytesSent += buffer.position();

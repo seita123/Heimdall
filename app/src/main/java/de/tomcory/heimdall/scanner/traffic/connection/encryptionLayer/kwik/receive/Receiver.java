@@ -151,7 +151,7 @@ public class Receiver {
         }
     }
 
-    public void receive(@Nullable byte[] receivedPacket, @NotNull String hostname, int remotePort){
+    public void receive(byte[] receivedPacket, String hostname, int remotePort){
         Instant timeReceived = Instant.now();
         InetSocketAddress address = new InetSocketAddress(hostname, remotePort);
         DatagramPacket receivedDatagram = new DatagramPacket(receivedPacket, receivedPacket.length, address.getAddress(), address.getPort());
