@@ -18,11 +18,15 @@
  */
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.receive;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Instant;
@@ -147,9 +151,12 @@ public class Receiver {
         }
     }
 
-    public void receive(byte[] receivedPacket){
+    public void receive(@Nullable byte[] receivedPacket, @NotNull String hostname, int remotePort){
         Instant timeReceived = Instant.now();
-        RawPacket rawPacket = new RawPacket(receivedPacket, timeReceived, counter++);
+        InetSocketAddress address = new InetSocketAddress(hostname, remotePort);
+        DatagramPacket receivedDatagram = new DatagramPacket(receivedPacket, receivedPacket.length, address.getAddress(), address.getPort());
+
+        RawPacket rawPacket = new RawPacket(receivedDatagram, timeReceived, counter++);
         receivedPacketsQueue.add(rawPacket);
     }
 

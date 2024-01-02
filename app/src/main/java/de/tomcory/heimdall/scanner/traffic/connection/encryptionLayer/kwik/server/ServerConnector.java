@@ -125,11 +125,11 @@ public class ServerConnector {
         if ((flags & 0b1100_0000) == 0b1100_0000) {
             // https://tools.ietf.org/html/draft-ietf-quic-transport-32#section-17.2
             // "Header Form:  The most significant bit (0x80) of byte 0 (the first byte) is set to 1 for long headers."
-//            processLongHeaderPacket(new InetSocketAddress(rawPacket.getAddress(), rawPacket.getPort()), data);
+            processLongHeaderPacket(new InetSocketAddress(rawPacket.getAddress(), rawPacket.getPort()), data);
         } else if ((flags & 0b1100_0000) == 0b0100_0000) {
             // https://tools.ietf.org/html/draft-ietf-quic-transport-32#section-17.3
             // "Header Form:  The most significant bit (0x80) of byte 0 is set to 0 for the short header.
-//           processShortHeaderPacket(new InetSocketAddress(rawPacket.getAddress(), rawPacket.getPort()), data);
+           processShortHeaderPacket(new InetSocketAddress(rawPacket.getAddress(), rawPacket.getPort()), data);
         } else {
             // https://tools.ietf.org/html/draft-ietf-quic-transport-32#section-17.2
             // https://tools.ietf.org/html/draft-ietf-quic-transport-32#section-17.3

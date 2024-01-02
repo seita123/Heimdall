@@ -28,17 +28,17 @@ import java.time.Instant;
  */
 public class RawPacket {
 
-    private final byte[] receivedPacket;
+    private final DatagramPacket receivedPacket;
     private final Instant timeReceived;
     private final int number;
     private final ByteBuffer data;
 
-    public RawPacket(byte[] receivedPacket, Instant timeReceived, int number) {
+    public RawPacket(DatagramPacket receivedPacket, Instant timeReceived, int number) {
         this.receivedPacket = receivedPacket;
         this.timeReceived = timeReceived;
         this.number = number;
 
-        data = ByteBuffer.wrap(receivedPacket, 0, receivedPacket.length);
+        data = ByteBuffer.wrap(receivedPacket.getData(), 0, receivedPacket.getLength());
     }
 
     public Instant getTimeReceived() {
@@ -57,11 +57,11 @@ public class RawPacket {
         return data.limit();
     }
 
-//    public InetAddress getAddress() {
-//        return receivedPacket.getAddress();
-//    }
-//
-//    public int getPort() {
-//        return receivedPacket.getPort();
-//    }
+    public InetAddress getAddress() {
+        return receivedPacket.getAddress();
+    }
+
+    public int getPort() {
+        return receivedPacket.getPort();
+    }
 }
