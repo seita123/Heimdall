@@ -1,5 +1,6 @@
 package de.tomcory.heimdall.scanner.traffic.mitm
 
+import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLPeerUnverifiedException
@@ -21,6 +22,8 @@ class CertificateSniffingMitmManager(authority: Authority?) {
     } catch (e: Exception) {
         throw RootCertificateException("Error assembling SSLEngineSource with root CA", e)
     }
+
+    private var authority: Authority? = authority
 
 
     fun createServerSSLEngine(peerHost: String?, peerPort: Int): SSLEngine? {
@@ -84,6 +87,42 @@ class CertificateSniffingMitmManager(authority: Authority?) {
         throw IllegalStateException("Missed CN in Subject DN: " + c.subjectDN)
     }
 
+    // create certificates for QUIC connection
+    fun createQuicServerCertificate(upstreamCert: X509Certificate): ServerCertificateData {
+        try {
+            val commonName = getCommonName(upstreamCert)
+            val san = SubjectAlternativeNameHolder()
+            san.addAll(upstreamCert.subjectAlternativeNames)
+
+            val caKs = KeyStoreHelper.initialiseOrLoadKeyStore(
+                authority!!
+            )
+            val caCert = caKs.getCertificate(authority!!.alias)
+            val caPrivateKey = caKs.getKey(authority!!.alias, authority!!.password) as PrivateKey
+
+            val fakeCertKs = CertificateHelper.createServerCertificate(
+                commonName,
+                san,
+                authority!!,
+                caCert,
+                caPrivateKey
+            )
+            val fakeCert = fakeCertKs.getCertificate(authority!!.alias)
+            val fakeKey = fakeCertKs.getKey(authority!!.alias, authority!!.password)
+
+            return ServerCertificateData(
+                fakeCert as X509Certificate,
+                fakeKey as PrivateKey
+            )
+
+
+        } catch (e: Exception) {
+            throw FakeCertificateException("Creation dynamic certificate for QUIC failed", e)
+        }
+
+
+    }
+
     //TODO: singleton isn't ideal here; it would be better to attach it to the VpnService lifecycle
     companion object {
         private var singleton: CertificateSniffingMitmManager? = null
@@ -100,3 +139,8 @@ class CertificateSniffingMitmManager(authority: Authority?) {
         }
     }
 }
+
+data class ServerCertificateData(
+    val certificate: X509Certificate,
+    val privateKey: PrivateKey
+)

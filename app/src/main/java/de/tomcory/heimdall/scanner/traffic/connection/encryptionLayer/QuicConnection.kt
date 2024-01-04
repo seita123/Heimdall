@@ -3,17 +3,18 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer
 //import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
 
 import de.tomcory.heimdall.scanner.traffic.components.ComponentManager
-import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.DatagramSocketFactory
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.Version
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.SysOutLogger
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnectionImpl
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnector
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection
-import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.UdpConnection
-import de.tomcory.heimdall.scanner.traffic.mitm.SubjectAlternativeNameHolder
 import de.tomcory.heimdall.util.ByteUtils
 import net.luminis.tls.env.PlatformMapping
 import org.pcap4j.packet.Packet
 import timber.log.Timber
-import java.net.DatagramSocket
+import java.io.ByteArrayInputStream
 import java.net.InetAddress
 import java.net.URI
 import java.security.cert.X509Certificate
@@ -204,17 +205,32 @@ class QuicConnection(
 
     private fun createQuicServer(){
 
-        val commonName = serverCertificate?.let { componentManager.mitmManager.getCommonName(it) }
-        val san = SubjectAlternativeNameHolder()
-        san.addAll(serverCertificate?.subjectAlternativeNames)
+        val fakeCertData = serverCertificate?.let { componentManager.mitmManager.createQuicServerCertificate(it) }
 
-//        val ks = CertificateHelper.createServerCertificate(
-//            commonName,
-//            san,
-//            authority,
-//            caCert,
-//            caPrivateKey
-//        )
+        val fakeCert = fakeCertData?.certificate
+        val certBytes: ByteArray? = fakeCert?.encoded
+        val certificateInputStream = ByteArrayInputStream(certBytes)
+
+        val fakeKey = fakeCertData?.privateKey
+        val keyBytes: ByteArray? = fakeKey?.encoded
+        val keyInputStream = ByteArrayInputStream(keyBytes)
+
+        val supportedVersions: MutableList<Version> = ArrayList<Version>()
+        supportedVersions.add(Version.QUIC_version_1)
+        val log: Logger = SysOutLogger()
+        val requireRetry = false
+
+        val serverConnector = ServerConnector(
+            transportLayer.remotePort,
+            certificateInputStream,
+            keyInputStream,
+            supportedVersions,
+            requireRetry,
+            log
+        )
+
+        serverConnector.start()
+
     }
 
     ////////////////////////////////////////////////////////////////////////
