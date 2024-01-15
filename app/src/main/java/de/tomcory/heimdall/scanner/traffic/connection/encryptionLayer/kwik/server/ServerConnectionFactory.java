@@ -21,6 +21,8 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.serv
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.Version;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.InitialPacket;
+import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
+
 import net.luminis.tls.handshake.TlsServerEngineFactory;
 
 import java.net.DatagramSocket;
@@ -36,13 +38,13 @@ public class ServerConnectionFactory {
     private final Logger log;
     private final TlsServerEngineFactory tlsServerEngineFactory;
     private final ApplicationProtocolRegistry applicationProtocolRegistry;
-    private final DatagramSocket serverSocket;
+    private final TransportLayerConnection transportLayerConnection;
     private final int initalRtt;
     private final Consumer<ServerConnectionImpl> closeCallback;
     private final boolean requireRetry;
     private final ServerConnectionRegistry connectionRegistry;
 
-    public ServerConnectionFactory(int connectionIdLength, DatagramSocket serverSocket, TlsServerEngineFactory tlsServerEngineFactory,
+    public ServerConnectionFactory(int connectionIdLength, TransportLayerConnection transportLayerConnection, TlsServerEngineFactory tlsServerEngineFactory,
                                    boolean requireRetry, ApplicationProtocolRegistry applicationProtocolRegistry, int initalRtt,
                                    ServerConnectionRegistry connectionRegistry, Consumer<ServerConnectionImpl> closeCallback, Logger log)
     {
@@ -58,7 +60,7 @@ public class ServerConnectionFactory {
         this.connectionRegistry = connectionRegistry;
         this.closeCallback = closeCallback;
         this.log = log;
-        this.serverSocket = serverSocket;
+        this.transportLayerConnection = transportLayerConnection;
         this.initalRtt = initalRtt;
     }
 
@@ -71,7 +73,7 @@ public class ServerConnectionFactory {
      * @return
      */
     public ServerConnectionImpl createNewConnection(Version version, InetSocketAddress clientAddress, byte[] scid, byte[] originalDcid) {
-        return new ServerConnectionImpl(version, serverSocket, clientAddress, scid, originalDcid, connectionIdLength,
+        return new ServerConnectionImpl(version, transportLayerConnection, clientAddress, scid, originalDcid, connectionIdLength,
                 tlsServerEngineFactory, requireRetry, applicationProtocolRegistry, initalRtt, connectionRegistry, closeCallback, log);
     }
 

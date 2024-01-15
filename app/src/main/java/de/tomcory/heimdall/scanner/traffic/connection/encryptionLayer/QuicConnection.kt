@@ -15,9 +15,12 @@ import net.luminis.tls.env.PlatformMapping
 import org.pcap4j.packet.Packet
 import timber.log.Timber
 import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.net.InetAddress
 import java.net.URI
+import java.nio.charset.StandardCharsets
 import java.security.cert.X509Certificate
+import java.util.Base64
 
 
 class QuicConnection(
@@ -64,14 +67,22 @@ class QuicConnection(
 
     private var inboundSnippet: ByteArray? = null
 
+    private var originalClientHello: ByteArray? = null
+
+    private var serverConnector: ServerConnector? = null
+
 
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////
 
     override fun unwrapOutbound(payload: ByteArray) { // Not in use at the moment
+        if (id > 0){
+            processRecord(payload, doMitm)
+        } else {
+            passOutboundToAppLayer(payload)
+        }
 
-        processRecord(payload, doMitm)
 
         //TODO: implement
 //        passOutboundToAppLayer(payload)
@@ -80,7 +91,17 @@ class QuicConnection(
     override fun unwrapOutbound(packet: Packet) { // This one is being used
         //TODO: implement
         println("unwrapOutbound $id")
-        processRecord(packet.rawData, true)
+        if (id > 0){
+            when(connectionState){
+                ConnectionState.NEW -> processRecord(packet.rawData, true)
+                ConnectionState.CLIENT_ESTABLISHED -> serverConnector?.receiver?.receive(packet.rawData, hostname, transportLayer.remotePort)
+                else -> {
+                    println("Unexpected Message from client while in connection state $connectionState")}
+            }
+
+        } else {
+            passOutboundToAppLayer(packet.rawData)
+        }
 
 //        passOutboundToAppLayer(packet)
     }
@@ -123,6 +144,7 @@ class QuicConnection(
         if(connectionState == ConnectionState.NEW){
             when(recordType){
                 RecordType.INITIAL -> {
+                    originalClientHello = record
                     createQUICClient(record)
                 }
                 else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
@@ -143,24 +165,8 @@ class QuicConnection(
     }
 
     ////////////////////////////////////////////////////////////////////////
-    ///// SSLEngine setup methods /////////////////////////////////////////
+    ///// kwik setup methods //////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////
-
-    private fun createInitialSecrets(record: ByteArray){
-        // get Destination ID for generating the pseudorandom key (PRK) with the initial salt
-        val destIDlength = record[5].toUByte().toInt()
-        val destIDRange = IntRange(6, 6 + destIDlength - 1)
-        // val destId = record.slice(destIDRange).toByteArray() // check if this works!
-
-        // destIdBytes.forEach { destID.plus(it.toUByte().toString()) }
-
-        // val destID = destIdBytes.joinToString("") { it.toString(radix = 16).padStart(2, '0') }
-
-//        val hkdf = HKDF.fromHmacSha256()
-//
-//        initialSecret = hkdf.extract(initialSaltV1, destId)
-
-    }
 
     private fun createQUICClient(record: ByteArray){
         println("Creating QUIC Client")
@@ -192,44 +198,59 @@ class QuicConnection(
 
             serverCertificate = serverFacingQuicConnection?.serverCertificateChain?.get(0)
 
-            createQuicServer()
-
-        }catch (e: Exception){
+        } catch (e: Exception){
             Timber.e("quic$id Error while establishing the server facing QUIC connection")
             Timber.e(e)
+        } finally {
+            createQuicServer()
         }
 
     }
 
-
-
     private fun createQuicServer(){
 
-        val fakeCertData = serverCertificate?.let { componentManager.mitmManager.createQuicServerCertificate(it) }
+        try {
+            val fakeCertData = serverCertificate?.let { componentManager.mitmManager.createQuicServerCertificate(it) }
 
-        val fakeCert = fakeCertData?.certificate
-        val certBytes: ByteArray? = fakeCert?.encoded
-        val certificateInputStream = ByteArrayInputStream(certBytes)
+            val fakeCert = fakeCertData?.certificate
+//            val certBytes: ByteArray? = fakeCert?.encoded
+//            val certificateInputStream = ByteArrayInputStream(certBytes)
+            val prvcert: String = Base64.getEncoder().encodeToString(fakeCert?.encoded)
+            val certStream: InputStream = ByteArrayInputStream(prvcert.toByteArray(StandardCharsets.UTF_8))
 
-        val fakeKey = fakeCertData?.privateKey
-        val keyBytes: ByteArray? = fakeKey?.encoded
-        val keyInputStream = ByteArrayInputStream(keyBytes)
 
-        val supportedVersions: MutableList<Version> = ArrayList<Version>()
-        supportedVersions.add(Version.QUIC_version_1)
-        val log: Logger = SysOutLogger()
-        val requireRetry = false
+            val fakeKey = fakeCertData?.privateKey
+//            val keyBytes: ByteArray? = fakeKey?.encoded
+//            val keyInputStream = ByteArrayInputStream(keyBytes)
+            val prvkey: String = Base64.getEncoder().encodeToString(fakeKey?.encoded)
+            val keyStream: InputStream = ByteArrayInputStream(prvkey.toByteArray(StandardCharsets.UTF_8))
 
-        val serverConnector = ServerConnector(
-            transportLayer.remotePort,
-            certificateInputStream,
-            keyInputStream,
-            supportedVersions,
-            requireRetry,
-            log
-        )
+            val supportedVersions: MutableList<Version> = ArrayList<Version>()
+            supportedVersions.add(Version.QUIC_version_1)
+            val log: Logger = SysOutLogger()
+            val requireRetry = false
 
-        serverConnector.start()
+            serverConnector = ServerConnector(
+                transportLayer,
+                certStream,
+                keyStream,
+                supportedVersions,
+                requireRetry,
+                log
+            )
+
+            serverConnector!!.start()
+            var test = transportLayer.ipPacketBuilder.localAddress.hostAddress
+            // Probably different hostname + port needed?
+            serverConnector!!.receiver?.receive(originalClientHello, transportLayer.ipPacketBuilder.localAddress.hostAddress, transportLayer.localPort)
+
+            Timber.d("quic$id Client facing QUIC connection established.")
+            connectionState = ConnectionState.CLIENT_ESTABLISHED
+
+        } catch (e: Exception){
+            Timber.e("quic$id Error while establishing the client facing QUIC connection")
+            Timber.e(e)
+        }
 
     }
 

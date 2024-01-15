@@ -87,7 +87,7 @@ class CertificateSniffingMitmManager(authority: Authority?) {
         throw IllegalStateException("Missed CN in Subject DN: " + c.subjectDN)
     }
 
-    // create certificates for QUIC connection
+    // create fake server certificates for QUIC connection
     fun createQuicServerCertificate(upstreamCert: X509Certificate): ServerCertificateData {
         try {
             val commonName = getCommonName(upstreamCert)
@@ -115,12 +115,9 @@ class CertificateSniffingMitmManager(authority: Authority?) {
                 fakeKey as PrivateKey
             )
 
-
         } catch (e: Exception) {
             throw FakeCertificateException("Creation dynamic certificate for QUIC failed", e)
         }
-
-
     }
 
     //TODO: singleton isn't ideal here; it would be better to attach it to the VpnService lifecycle

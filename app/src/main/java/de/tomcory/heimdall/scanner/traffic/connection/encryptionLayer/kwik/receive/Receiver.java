@@ -43,8 +43,6 @@ import java.util.function.Predicate;
 public class Receiver {
 
     public static final int MAX_DATAGRAM_SIZE = 1500;
-
-    private volatile DatagramSocket socket;
     private final Logger log;
     private final Consumer<Throwable> abortCallback;
     private final Predicate<DatagramPacket> packetFilter;
@@ -54,35 +52,17 @@ public class Receiver {
     private volatile boolean changing = false;
     private int counter = 0;
 
-    public Receiver(DatagramSocket socket, Logger log, Consumer<Throwable> abortCallback) {
-        this(socket, log, abortCallback, d -> true);
+    public Receiver(Logger log, Consumer<Throwable> abortCallback) {
+        this(log, abortCallback, d -> true);
     }
 
-    public Receiver(DatagramSocket socket, Logger log, Consumer<Throwable> abortCallback, Predicate<DatagramPacket> packetFilter) {
-        this.socket = Objects.requireNonNull(socket);
+    public Receiver(Logger log, Consumer<Throwable> abortCallback, Predicate<DatagramPacket> packetFilter) {
         this.log = Objects.requireNonNull(log);
         this.abortCallback = Objects.requireNonNull(abortCallback);
         this.packetFilter = Objects.requireNonNull(packetFilter);
 
-//        receiverThread = new Thread(() -> run(), "receiver");
-//        receiverThread.setDaemon(true);
         receivedPacketsQueue = new LinkedBlockingQueue<>();
-
-        try {
-            log.debug("Socket receive buffer size: " + socket.getReceiveBufferSize());
-        } catch (SocketException e) {
-            // Ignore
-        }
     }
-
-//    public void start() {
-//        receiverThread.start();
-//    }
-//
-//    public void shutdown() {
-//        isClosing = true;
-//        receiverThread.interrupt();
-//    }
 
     public RawPacket get() throws InterruptedException {
         return receivedPacketsQueue.take();
@@ -102,55 +82,6 @@ public class Receiver {
         return receivedPacketsQueue.poll(timeout, TimeUnit.SECONDS);
     }
 
-    private void run() {
-        int counter = 0;
-
-        try {
-            while (! isClosing) {
-                byte[] receiveBuffer = new byte[MAX_DATAGRAM_SIZE];
-                DatagramPacket receivedPacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
-                try {
-                    socket.receive(receivedPacket);
-
-                    if (packetFilter.test(receivedPacket)) {
-                        Instant timeReceived = Instant.now();
-//                        RawPacket rawPacket = new RawPacket(receivedPacket, timeReceived, counter++);
-//                        receivedPacketsQueue.add(rawPacket);
-                    }
-                }
-                catch (SocketTimeoutException timeout) {
-                    // Impossible, as no socket timeout set
-                }
-                catch (SocketException socketError) {
-                    if (changing) {
-                        // Expected
-                        log.debug("Ignoring socket closed exception, because changing socket", socketError);
-                        changing = false;  // Don't do it again.
-                    }
-                    else {
-                        throw socketError;
-                    }
-                }
-            }
-
-            log.debug("Terminating receive loop");
-        }
-        catch (IOException e) {
-            if (! isClosing) {
-                // This is probably fatal
-                log.error("IOException while receiving datagrams", e);
-                abortCallback.accept(e);
-            }
-            else {
-                log.debug("closing receiver");
-            }
-        }
-        catch (Throwable fatal) {
-            log.error("IOException while receiving datagrams", fatal);
-            abortCallback.accept(fatal);
-        }
-    }
-
     public void receive(byte[] receivedPacket, String hostname, int remotePort){
         Instant timeReceived = Instant.now();
         InetSocketAddress address = new InetSocketAddress(hostname, remotePort);
@@ -161,9 +92,6 @@ public class Receiver {
     }
 
     public void changeAddress(DatagramSocket newSocket) {
-        DatagramSocket oldSocket = socket;
-        socket = newSocket;
-        changing = true;
-        oldSocket.close();
+        // Todo: find something useful here
     }
 }

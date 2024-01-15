@@ -25,15 +25,21 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.recei
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.Version;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.InitialPacket;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.VersionNegotiationPacket;
+import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
+
+import net.luminis.tls.compat.InputStreamCompat;
 import net.luminis.tls.handshake.TlsServerEngineFactory;
 import net.luminis.tls.util.ByteUtils;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -50,11 +56,10 @@ public class ServerConnector {
     private static final int MINIMUM_LONG_HEADER_LENGTH = 1 + 4 + 1 + 0 + 1 + 0;
     private static final int CONNECTION_ID_LENGTH = 4;
 
-    private final Receiver receiver;
+    public final Receiver receiver;
     private final Logger log;
     private final List<Version> supportedVersions;
     private final List<Integer> supportedVersionIds;
-    private final DatagramSocket serverSocket;
     private final boolean requireRetry;
     private Integer initalRtt = 100;
     private TlsServerEngineFactory tlsEngineFactory;
@@ -64,25 +69,26 @@ public class ServerConnector {
     private final ScheduledExecutorService sharedScheduledExecutor = Executors.newSingleThreadScheduledExecutor();
     private Context context;
     private ServerConnectionRegistryImpl connectionRegistry;
+    private TransportLayerConnection transportLayerConnection;
 
-    public ServerConnector(int port, InputStream certificateFile, InputStream certificateKeyFile, List<Version> supportedVersions, boolean requireRetry, Logger log) throws Exception {
-        this(new DatagramSocket(port), certificateFile, certificateKeyFile, supportedVersions, requireRetry, log);
-    }
 
-    public ServerConnector(DatagramSocket socket, InputStream certificateFile, InputStream certificateKeyFile, List<Version> supportedVersions, boolean requireRetry, Logger log) throws Exception {
-        serverSocket = socket;
+    public ServerConnector(TransportLayerConnection transportLayerConnection, InputStream certificateFile, InputStream certificateKeyFile, List<Version> supportedVersions, boolean requireRetry, Logger log) throws Exception {
         this.supportedVersions = supportedVersions;
         this.requireRetry = requireRetry;
         this.log = Objects.requireNonNull(log);
+        this.transportLayerConnection = transportLayerConnection;
 
-        tlsEngineFactory = new TlsServerEngineFactory(certificateFile, certificateKeyFile);
+        String key = new String(InputStreamCompat.readAllBytes(certificateKeyFile), Charset.defaultCharset());
+        key = key.trim();
+        InputStream keyStream = new ByteArrayInputStream(key.getBytes(StandardCharsets.UTF_8));
+        tlsEngineFactory = new TlsServerEngineFactory(certificateFile, keyStream);
         applicationProtocolRegistry = new ApplicationProtocolRegistry();
         connectionRegistry = new ServerConnectionRegistryImpl(log);
-        serverConnectionFactory = new ServerConnectionFactory(CONNECTION_ID_LENGTH, serverSocket, tlsEngineFactory,
+        serverConnectionFactory = new ServerConnectionFactory(CONNECTION_ID_LENGTH, transportLayerConnection, tlsEngineFactory,
                 this.requireRetry, applicationProtocolRegistry, initalRtt, connectionRegistry, connectionRegistry::removeConnection, log);
 
         supportedVersionIds = supportedVersions.stream().map(version -> version.getId()).collect(Collectors.toList());
-        receiver = new Receiver(serverSocket, log, exception -> System.exit(9));
+        receiver = new Receiver(log, exception -> System.exit(9));
         context = new ServerConnectorContext();
     }
 
@@ -98,8 +104,6 @@ public class ServerConnector {
 //        receiver.start();
 
         new Thread(this::receiveLoop, "server receive loop").start();
-        log.info("Kwik server connector started on port " + serverSocket.getLocalPort()+ "; supported application protocols: "
-                + applicationProtocolRegistry.getRegisteredApplicationProtocols());
     }
 
     protected void receiveLoop() {
@@ -252,12 +256,9 @@ public class ServerConnector {
             VersionNegotiationPacket versionNegotiationPacket = new VersionNegotiationPacket(supportedVersions, dcid, scid);
             byte[] packetBytes = versionNegotiationPacket.generatePacketBytes(null);
             DatagramPacket datagram = new DatagramPacket(packetBytes, packetBytes.length, clientAddress.getAddress(), clientAddress.getPort());
-            try {
-                serverSocket.send(datagram);
-                log.sent(Instant.now(), versionNegotiationPacket);
-            } catch (IOException e) {
-                log.error("Sending version negotiation packet failed", e);
-            }
+            //                serverSocket.send(datagram);
+            transportLayerConnection.wrapInbound(packetBytes); // Todo: check if this is really inbound
+            log.sent(Instant.now(), versionNegotiationPacket);
         }
     }
 

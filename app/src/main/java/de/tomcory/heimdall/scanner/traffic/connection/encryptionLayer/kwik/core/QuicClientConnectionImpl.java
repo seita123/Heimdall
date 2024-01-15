@@ -166,13 +166,13 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
         socket = this.socketFactory.createSocket(serverAddress);
 
         idleTimer = new IdleTimer(this, log);
-        sender = new SenderImpl(quicVersion, getMaxPacketSize(), socket, new InetSocketAddress(serverAddress, port),
-                        this, initialRtt, log, transportLayerConnection);
+        sender = new SenderImpl(quicVersion, getMaxPacketSize(), transportLayerConnection, new InetSocketAddress(serverAddress, port),
+                        this, initialRtt, log, false);
         sender.enableAllLevels();
         idleTimer.setPtoSupplier(sender::getPto);
         ackGenerator = sender.getGlobalAckGenerator();
 
-        receiver = new Receiver(socket, log, this::abortConnection, createPacketFilter());
+        receiver = new Receiver(log, this::abortConnection, createPacketFilter());
 
         transportParams = initTransportParameters(connectionProperties);
         streamManager = new StreamManager(this, Role.Client, log, (int) transportParams.getInitialMaxStreamsUni(),

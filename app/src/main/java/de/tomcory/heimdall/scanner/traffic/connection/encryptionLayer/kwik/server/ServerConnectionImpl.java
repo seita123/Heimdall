@@ -36,6 +36,8 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.send.
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.stream.FlowControl;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.stream.StreamManager;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.tls.QuicTransportParametersExtension;
+import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
+
 import net.luminis.tls.NewSessionTicket;
 import net.luminis.tls.TlsConstants;
 import net.luminis.tls.TlsProtocolException;
@@ -96,7 +98,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
     /**
      * Creates a server connection implementation.
      * @param originalVersion  quic version used for this connection
-     * @param serverSocket  the socket that is used for sending packets
+     * @param transportLayerConnection  the Transportlayer instance that is being used for sending packets
      * @param initialClientAddress  the initial client address (after handshake, clients can move to different address)
      * @param peerCid  the connection id of the client
      * @param originalDcid  the original destination connection id used by the client
@@ -109,7 +111,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
      * @param closeCallback  callback for notifying interested parties this connection is closed
      * @param log  logger
      */
-    protected ServerConnectionImpl(Version originalVersion, DatagramSocket serverSocket, InetSocketAddress initialClientAddress,
+    protected ServerConnectionImpl(Version originalVersion, TransportLayerConnection transportLayerConnection, InetSocketAddress initialClientAddress,
                                    byte[] peerCid, byte[] originalDcid, int connectionIdLength, TlsServerEngineFactory tlsServerEngineFactory,
                                    boolean retryRequired, ApplicationProtocolRegistry applicationProtocolRegistry,
                                    Integer initialRtt, ServerConnectionRegistry connectionRegistry, Consumer<ServerConnectionImpl> closeCallback, Logger log) {
@@ -130,7 +132,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
         ));
 
         idleTimer = new IdleTimer(this, log);
-        sender = new SenderImpl(quicVersion, getMaxPacketSize(), serverSocket, initialClientAddress,this, initialRtt, this.log);
+        sender = new SenderImpl(quicVersion, getMaxPacketSize(), transportLayerConnection, initialClientAddress,this, initialRtt, this.log, true);
         if (! retryRequired) {
             sender.setAntiAmplificationLimit(0);
         }

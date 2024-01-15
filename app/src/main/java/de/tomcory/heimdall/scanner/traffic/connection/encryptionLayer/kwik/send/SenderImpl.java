@@ -77,7 +77,7 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
 
     private final Clock clock;
     private volatile int maxPacketSize;
-    private volatile DatagramSocket socket;
+    private final TransportLayerConnection transportLayerConnection;
     private final InetSocketAddress peerAddress;
     private final QuicConnectionImpl connection;
     private final CongestionController congestionController;
@@ -108,30 +108,23 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
     private volatile boolean lastDelayWasZero = false;
     private volatile int antiAmplificationLimit = -1;
     private volatile Runnable shutdownHook;
+    private final Boolean isServerSender;
 
-    private TransportLayerConnection transportLayerConnection;
-
-
-    public SenderImpl(VersionHolder version, int maxPacketSize, DatagramSocket socket, InetSocketAddress peerAddress,
-                      QuicConnectionImpl connection, Integer initialRtt, Logger log, TransportLayerConnection transportLayerConnection) {
-        this(Clock.systemUTC(), version, maxPacketSize, socket, peerAddress, connection, initialRtt, log, transportLayerConnection);
+    public SenderImpl(VersionHolder version, int maxPacketSize, TransportLayerConnection transportLayerConnection, InetSocketAddress peerAddress,
+                      QuicConnectionImpl connection, Integer initialRtt, Logger log, Boolean isServerSender) {
+        this(Clock.systemUTC(), version, maxPacketSize, transportLayerConnection, peerAddress, connection, initialRtt, log, isServerSender);
     }
 
-    public SenderImpl(VersionHolder version, int maxPacketSize, DatagramSocket socket, InetSocketAddress peerAddress,
-                      QuicConnectionImpl connection, Integer initialRtt, Logger log) {
-        this(Clock.systemUTC(), version, maxPacketSize, socket, peerAddress, connection, initialRtt, log, null);
-    }
-
-    public SenderImpl(Clock clock, VersionHolder version, int maxPacketSize, DatagramSocket socket, InetSocketAddress peerAddress,
-                      QuicConnectionImpl connection, Integer initialRtt, Logger log, TransportLayerConnection transportLayerConnection) {
+    public SenderImpl(Clock clock, VersionHolder version, int maxPacketSize, TransportLayerConnection transportLayerConnection, InetSocketAddress peerAddress,
+                      QuicConnectionImpl connection, Integer initialRtt, Logger log, Boolean isServerSender) {
         this.clock = clock;
         this.maxPacketSize = maxPacketSize;
-        this.socket = socket;
+        this.transportLayerConnection = transportLayerConnection;
         this.peerAddress = peerAddress;
         this.connection = connection;
         this.log = log;
         this.qlog = log.getQLog();
-        this.transportLayerConnection = transportLayerConnection;
+        this.isServerSender = isServerSender;
 
         Arrays.stream(EncryptionLevel.values()).forEach(level -> {
             int levelIndex = level.ordinal();
@@ -243,7 +236,7 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
     }
     
     public void changeAddress(DatagramSocket newSocket) {
-        socket = newSocket;
+        // Todo: find something useful here
     }
 
     public void discard(PnSpace space, String reason) {
@@ -425,7 +418,12 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
         DatagramPacket datagram = new DatagramPacket(datagramData, buffer.position(), peerAddress.getAddress(), peerAddress.getPort());
 
         Instant timeSent = clock.instant();
-        transportLayerConnection.wrapOutbound(datagramData);
+
+        if (isServerSender){
+            transportLayerConnection.wrapInbound(datagramData);
+        } else {
+            transportLayerConnection.wrapOutbound(datagramData);
+        }
         // socket.send(datagram);
         datagramsSent++;
         packetsSent += itemsToSend.size();
