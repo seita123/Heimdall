@@ -98,7 +98,7 @@ abstract class EncryptionLayerConnection(
         }
 
         private fun detectQuic(rawPayload: ByteArray, transportLayer: TransportLayerConnection): Boolean {
-            if(rawPayload.isNotEmpty() and (transportLayer is UdpConnection)) {
+            if(rawPayload.isNotEmpty() and (transportLayer is UdpConnection) and (transportLayer.remotePort == 443)) {
                 val firstByte = rawPayload[0].toUByte().toInt()
                 if ((firstByte and 0x40) != 0 && rawPayload.size >= 5){
                     return true

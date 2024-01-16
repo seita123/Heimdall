@@ -237,7 +237,7 @@ dependencies {
 //        exclude group: "tech.kwik"
 //        exclude group: "commons-cli"
 //    }
-    implementation "tech.kwik:agent15:1.0.4"
+    implementation "tech.kwik:agent15:1.0.6"
     implementation "at.favre.lib:hkdf:2.0.0"
     implementation "org.glassfish:javax.json:1.1.4"
     implementation "commons-cli:commons-cli:1.4"
