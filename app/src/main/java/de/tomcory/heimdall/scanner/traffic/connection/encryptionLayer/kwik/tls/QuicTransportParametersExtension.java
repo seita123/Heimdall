@@ -25,9 +25,9 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.gener
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.util.Bytes;
-import net.luminis.tls.alert.DecodeErrorException;
-import net.luminis.tls.extension.Extension;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.alert.DecodeErrorException;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.extension.Extension;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;

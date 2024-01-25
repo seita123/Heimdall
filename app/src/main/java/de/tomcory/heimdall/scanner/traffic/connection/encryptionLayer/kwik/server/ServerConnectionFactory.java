@@ -23,7 +23,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.L
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.InitialPacket;
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
 
-import net.luminis.tls.handshake.TlsServerEngineFactory;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.TlsServerEngineFactory;
 
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;

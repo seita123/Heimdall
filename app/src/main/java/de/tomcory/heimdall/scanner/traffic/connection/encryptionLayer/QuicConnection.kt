@@ -3,15 +3,16 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer
 //import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
 
 import de.tomcory.heimdall.scanner.traffic.components.ComponentManager
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.env.PlatformMapping
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicClientConnection
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.Version
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.SysOutLogger
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ApplicationProtocolConnection
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ApplicationProtocolConnectionFactory
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnectionImpl
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnector
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection
-import de.tomcory.heimdall.util.ByteUtils
-import net.luminis.tls.env.PlatformMapping
 import org.pcap4j.packet.Packet
 import timber.log.Timber
 import java.io.ByteArrayInputStream
@@ -77,12 +78,6 @@ class QuicConnection(
     //////////////////////////////////////////////////////////////////////
 
     override fun unwrapOutbound(payload: ByteArray) { // Not in use at the moment
-        if (id > 0){
-            processRecord(payload, doMitm)
-        } else {
-            passOutboundToAppLayer(payload)
-        }
-
 
         //TODO: implement
 //        passOutboundToAppLayer(payload)
@@ -90,17 +85,19 @@ class QuicConnection(
 
     override fun unwrapOutbound(packet: Packet) { // This one is being used
         //TODO: implement
-        println("unwrapOutbound $id")
-        if (id > 0){
-            when(connectionState){
-                ConnectionState.NEW -> processRecord(packet.rawData, true)
-                ConnectionState.CLIENT_ESTABLISHED -> serverConnector?.receiver?.receive(packet.rawData, hostname, transportLayer.remotePort)
-                else -> {
-                    println("Unexpected Message from client while in connection state $connectionState")}
-            }
+        val recordType = parseRecordType(packet.rawData)
+        println("unwrapOutbound $id + RecordType $recordType + ConnectionState: $connectionState")
 
-        } else {
-            passOutboundToAppLayer(packet.rawData)
+        // The client starts sending application data, therefore the handshake has been completed
+        if (recordType == RecordType.APP){
+            connectionState = ConnectionState.CLIENT_ESTABLISHED
+        }
+        var id = id // just to see in Debug without watch
+        when(connectionState){
+            ConnectionState.NEW -> initiateKwikSetup(packet.rawData, recordType)
+            ConnectionState.CLIENT_HANDSHAKE, ConnectionState.CLIENT_ESTABLISHED -> serverConnector?.receiver?.receive(packet.rawData, transportLayer.ipPacketBuilder.localAddress.hostAddress, transportLayer.localPort)
+            else -> {
+                println("Unexpected Message from client while in connection state $connectionState")}
         }
 
 //        passOutboundToAppLayer(packet)
@@ -108,7 +105,10 @@ class QuicConnection(
 
     override fun unwrapInbound(payload: ByteArray) {
         //TODO: implement
-        println("unwrapInbound $id")
+        val recordType = parseRecordType(payload)
+        println("unwrapInbound $id + RecordType $recordType")
+
+
         serverFacingQuicConnection?.receiver?.receive(payload, hostname, transportLayer.remotePort)
 //        passInboundToAppLayer(payload)
     }
@@ -239,13 +239,32 @@ class QuicConnection(
                 log
             )
 
+//            serverConnector!!.registerApplicationProtocol("h3", ApplicationProtocolConnectionFactory(){
+//                @Override
+//                fun createConnection(protocol: String, quicConnection: QuicConnection): ApplicationProtocolConnection {
+//                    return BasicConnection()
+//                }
+//            });
+
+            serverConnector!!.registerApplicationProtocol(
+                "h3",
+                object : ApplicationProtocolConnectionFactory {
+                    override fun createConnection(
+                        protocol: String?,
+                        quicConnection: de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicConnection?
+                    ): ApplicationProtocolConnection {
+                        return BasicConnection()
+                    }
+                })
+
+
             serverConnector!!.start()
             var test = transportLayer.ipPacketBuilder.localAddress.hostAddress
             // Probably different hostname + port needed?
             serverConnector!!.receiver?.receive(originalClientHello, transportLayer.ipPacketBuilder.localAddress.hostAddress, transportLayer.localPort)
 
             Timber.d("quic$id Client facing QUIC connection established.")
-            connectionState = ConnectionState.CLIENT_ESTABLISHED
+            connectionState = ConnectionState.CLIENT_HANDSHAKE
 
         } catch (e: Exception){
             Timber.e("quic$id Error while establishing the client facing QUIC connection")
@@ -258,7 +277,7 @@ class QuicConnection(
     ///// TLS record handler, parser, and assembly methods ////////////////
     //////////////////////////////////////////////////////////////////////
 
-    private fun processRecord(record: ByteArray, isOutbound: Boolean) {
+    private fun initiateKwikSetup(record: ByteArray, recordType: RecordType) {
 
         // check which Version of QUIC is being used
         val quicVersion = record[1].toUByte().toInt() shl 32 or record[2].toUByte().toInt() shl 16 or record[3].toUByte().toInt() shl 8 or record[4].toUByte().toInt()
@@ -266,113 +285,15 @@ class QuicConnection(
         // MitM will first only be implemented for QUIC version 1 (RFC 9000)
         if (quicVersion != 0x00000001){
             passOutboundToAppLayer(record)
-        }
-
-        if(record.isNotEmpty()) {
-            val recordType = parseRecordType(record)
-
-            if(isOutbound) {
-                handleOutboundRecord(record, recordType)
-            } else {
-                handleInboundRecord(record, recordType)
-            }
-        }
-
-    }
-
-    private fun prepareRecords(payload: ByteArray, isOutbound: Boolean){
-
-        var remainingBytes = if(isOutbound) remainingOutboundBytes else remainingInboundBytes
-        val cache = if(isOutbound) outboundCache else inboundCache
-
-        if(remainingBytes > 0) {
-            // the payload is added to the overflow
-
-            var attachedPayloadStart = 0
-            // check whether there are additional records appended to the current payload and split them off (we'll handle them separately below)
-            val currentPayload = if(remainingBytes < payload.size) {
-                attachedPayloadStart = remainingBytes
-                payload.slice(0 until attachedPayloadStart).toByteArray()
-            } else {
-                payload
-            }
-
-            // add the payload to the cache
-            cache.add(currentPayload)
-            remainingBytes -= currentPayload.size
-
-            if(isOutbound)
-                remainingOutboundBytes = remainingBytes
-            else
-                remainingInboundBytes = remainingBytes
-
-            // if there are still overflow bytes remaining, do nothing and await the next payload
-            if(remainingBytes > 0) {
-                return
-            }
-
-            // otherwise combine the cached parts into one record and clear the cache
-            val combinedRecord = cache.reduce { acc, x -> acc + x }
-            cache.clear()
-
-            // process the reassembled record
-            processRecord(combinedRecord, isOutbound)
-
-            // if there are additional payloads attached, process them as well
-            if(payload.size > currentPayload.size) {
-                val attachedPayload = payload.slice(attachedPayloadStart until payload.size).toByteArray()
-                //Timber.d("%s Processing attached payload", id)
-                prepareRecords(attachedPayload, isOutbound)
-            }
-
         } else {
-            // make sure that we have a valid TLS record...
-            val recordType = parseRecordType(payload)
-
-            if(recordType == RecordType.INVALID) {
-                Timber.e("tls$id Invalid QUIC record type: ${recordType}")
-                Timber.e("tls$id ${ByteUtils.bytesToHex(payload)}")
-                return
-            }
-
-            // ... which must at least comprise a TLS header with 5 bytes
-            if(payload.size < 5) {
-                //Timber.w("tls$id Got a tiny snippet of a TLS record (${payload.size} bytes), stashing it and awaiting the rest")
-                if(isOutbound) {
-                    outboundSnippet = payload
-                } else {
-                    inboundSnippet = payload
+            if (record.isNotEmpty()){
+                when(recordType){
+                    RecordType.INITIAL -> {
+                        originalClientHello = record
+                        createQUICClient(record)
+                    }
+                    else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
                 }
-                return
-            }
-
-            val statedLength = payload[3].toUByte().toInt() shl 8 or payload[4].toUByte().toInt()
-            val actualLength = payload.size - 5
-
-            // if the stated record length is larger than the payload length, we go into overflow mode and cache the payload
-            if(statedLength > actualLength) {
-                cache.add(payload)
-                remainingBytes = statedLength - actualLength
-
-                if(isOutbound) {
-                    remainingOutboundBytes = remainingBytes
-                } else {
-                    remainingInboundBytes = remainingBytes
-                }
-
-            } else if(statedLength < actualLength) {
-                val currentRecord = payload.slice(0 until statedLength + 5).toByteArray()
-                val attachedPayload = payload.slice(statedLength + 5 until payload.size).toByteArray()
-
-                // process the extracted record...
-                processRecord(currentRecord, isOutbound)
-
-                // ...and when that is done, handle the remaining attached payload
-                prepareRecords(attachedPayload, isOutbound)
-
-            } else {
-                // if the stated record length matches the payload length, we can just handle the record as-is
-                processRecord(payload, isOutbound)
             }
         }
 
@@ -380,23 +301,39 @@ class QuicConnection(
 
     // determine if short or long header and if long header which packet type
     private fun parseRecordType(record: ByteArray): RecordType {
+        // Todo: this is one for QUIC Version 1 --> Adapt for V2
 
         // get the bits from the first byte
-        val firstByte = record[0].toUByte().toString(2)
+        val firstByte = record[0]
 
-        return when(firstByte[0]){
-            '0' -> RecordType.ONE_RTT
-            '1' -> {
-                when(firstByte[4]){     // only like this for version 1 QUIC
-                    '0' -> RecordType.INITIAL
-                    '1' -> RecordType.ZERO_RTT
-                    '2' -> RecordType.HANDSHAKE
-                    '3' -> RecordType.RETRY
-                    else -> RecordType.INVALID
-                }
+        if (firstByte.toInt() and 0x80 == 0x80) {
+            // Long header packet
+            val type: Int = firstByte.toInt() and 0x30 shr 4
+            return when(type){
+                0 -> RecordType.INITIAL
+                1 -> RecordType.ZERO_RTT
+                2 -> RecordType.HANDSHAKE
+                3 -> RecordType.RETRY
+                else -> {RecordType.INVALID}
             }
-            else -> RecordType.INVALID
+        } else {
+            // Short header packet
+            return RecordType.APP
         }
+
+//        return when(firstByte[0]){
+//            '0' -> RecordType.ONE_RTT
+//            '1' -> {
+//                when(firstByte[4]){     // only like this for version 1 QUIC
+//                    '0' -> RecordType.INITIAL
+//                    '1' -> RecordType.ZERO_RTT
+//                    '2' -> RecordType.HANDSHAKE
+//                    '3' -> RecordType.RETRY
+//                    else -> RecordType.INVALID
+//                }
+//            }
+//            else -> RecordType.INVALID
+//        }
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -422,7 +359,7 @@ private enum class RecordType {
     HANDSHAKE,
     RETRY,
     VERSION_NEGOTIATION, // Todo: implement Version Negotiation
-    ONE_RTT,
+    APP,
     INVALID,
     INDETERMINATE
 }
@@ -434,9 +371,19 @@ private enum class ConnectionState {
     NEW,
 
     /**
+     * Server-facing Kwik-Client initialised and handshake in progress.
+     */
+    SERVER_HANDSHAKE,
+
+    /**
      * Server-facing QUIC handshake complete and session established.
      */
     SERVER_ESTABLISHED,
+
+    /**
+     * Client-facing Kwik-Server initialised and handshake in progress.
+     */
+    CLIENT_HANDSHAKE,
 
     /**
      * Client-facing QUIC handshake complete, connection is ready for application data.
@@ -449,3 +396,4 @@ private enum class ConnectionState {
     CLOSED
 }
 
+class BasicConnection(): ApplicationProtocolConnection;

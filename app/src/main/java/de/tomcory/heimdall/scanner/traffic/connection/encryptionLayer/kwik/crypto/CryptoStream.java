@@ -28,11 +28,11 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.L
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.send.Sender;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.stream.BaseStream;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.tls.QuicTransportParametersExtension;
-import net.luminis.tls.*;
-import net.luminis.tls.extension.Extension;
-import net.luminis.tls.handshake.HandshakeMessage;
-import net.luminis.tls.handshake.TlsEngine;
-import net.luminis.tls.handshake.TlsMessageParser;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.*;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.extension.Extension;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.HandshakeMessage;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.TlsEngine;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.TlsMessageParser;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

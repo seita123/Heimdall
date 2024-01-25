@@ -24,8 +24,8 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.Version;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.VersionHolder;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
-import net.luminis.tls.*;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.*;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;

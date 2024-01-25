@@ -40,14 +40,14 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.strea
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.tls.QuicTransportParametersExtension;
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
 
-import net.luminis.tls.CertificateWithPrivateKey;
-import net.luminis.tls.NewSessionTicket;
-import net.luminis.tls.TlsConstants;
-import net.luminis.tls.TlsProtocolException;
-import net.luminis.tls.extension.ApplicationLayerProtocolNegotiationExtension;
-import net.luminis.tls.extension.EarlyDataExtension;
-import net.luminis.tls.extension.Extension;
-import net.luminis.tls.handshake.*;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.CertificateWithPrivateKey;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.NewSessionTicket;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsProtocolException;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.extension.ApplicationLayerProtocolNegotiationExtension;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.extension.EarlyDataExtension;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.extension.Extension;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.*;
 
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
@@ -75,7 +75,7 @@ import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwi
 import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl.EarlyDataStatus.Accepted;
 import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl.EarlyDataStatus.None;
 import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl.EarlyDataStatus.Requested;
-import static net.luminis.tls.util.ByteUtils.bytesToHex;
+import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils.bytesToHex;
 
 
 /**

@@ -24,7 +24,7 @@ class RawConnection(
     override fun unwrapOutbound(payload: ByteArray) {
         //TODO: implement
         if(encryptionLayer.doMitm) {
-            Timber.d("raw$id Processing raw out: ${payload.size} bytes")
+//            Timber.d("raw$id Processing raw out: ${payload.size} bytes") Todo: wieder einkommentieren
         }
         encryptionLayer.wrapOutbound(payload)
     }
@@ -37,7 +37,7 @@ class RawConnection(
     override fun unwrapInbound(payload: ByteArray) {
         //TODO: implement
         if(encryptionLayer.doMitm) {
-            Timber.d("raw$id Processing raw in: ${payload.size} bytes")
+//            Timber.d("raw$id Processing raw in: ${payload.size} bytes") Todo: wieder einkommentieren
         }
         encryptionLayer.wrapInbound(payload)
     }

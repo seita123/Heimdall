@@ -23,7 +23,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.frame
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.generic.InvalidIntegerEncodingException;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.generic.VariableLengthInteger;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.nio.ByteBuffer;
 import java.time.Instant;

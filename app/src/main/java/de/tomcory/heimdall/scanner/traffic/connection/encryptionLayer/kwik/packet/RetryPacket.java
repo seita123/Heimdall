@@ -21,7 +21,7 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.pack
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.crypto.Aead;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.*;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;

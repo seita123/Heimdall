@@ -21,7 +21,7 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.fram
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.Version;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.QuicPacket;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.nio.ByteBuffer;
 import java.time.Instant;

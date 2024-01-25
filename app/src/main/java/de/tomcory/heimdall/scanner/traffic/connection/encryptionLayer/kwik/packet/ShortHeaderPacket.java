@@ -22,7 +22,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.crypt
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.frame.QuicFrame;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.*;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.nio.ByteBuffer;
 import java.time.Instant;

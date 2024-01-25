@@ -39,9 +39,9 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.strea
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.stream.StreamManager;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.util.ProgressivelyIncreasingRateLimiter;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.util.RateLimiter;
-import net.luminis.tls.TlsProtocolException;
-import net.luminis.tls.alert.ErrorAlert;
-import net.luminis.tls.handshake.TlsEngine;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsProtocolException;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.alert.ErrorAlert;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.TlsEngine;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -64,7 +64,7 @@ import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwi
 import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.QuicConnectionImpl.ErrorType.QUIC_LAYER_ERROR;
 import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.QuicConnectionImpl.VersionNegotiationStatus.VersionChangeUnconfirmed;
 import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.send.Sender.NO_RETRANSMIT;
-import static net.luminis.tls.util.ByteUtils.bytesToHex;
+import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils.bytesToHex;
 
 
 public abstract class QuicConnectionImpl implements QuicConnection, PacketProcessor, FrameProcessor {

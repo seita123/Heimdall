@@ -19,8 +19,8 @@
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik;
 
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core.TransportParameters;
-import net.luminis.tls.NewSessionTicket;
-import net.luminis.tls.TlsConstants;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.NewSessionTicket;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants;
 
 public interface QuicSessionTicket {
 

@@ -19,8 +19,8 @@
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.core;
 
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicSessionTicket;
-import net.luminis.tls.NewSessionTicket;
-import net.luminis.tls.TlsConstants;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.NewSessionTicket;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants;
 
 import java.nio.ByteBuffer;
 

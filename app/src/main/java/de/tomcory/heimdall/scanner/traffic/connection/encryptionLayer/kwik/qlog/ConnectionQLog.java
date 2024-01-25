@@ -22,7 +22,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packe
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.QuicPacket;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.RetryPacket;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.qlog.event.*;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import javax.json.Json;
 import javax.json.stream.JsonGenerator;

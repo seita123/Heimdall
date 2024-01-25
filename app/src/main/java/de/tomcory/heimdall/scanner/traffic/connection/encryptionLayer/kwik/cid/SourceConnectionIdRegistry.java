@@ -19,7 +19,7 @@
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.cid;
 
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.util.Arrays;
 

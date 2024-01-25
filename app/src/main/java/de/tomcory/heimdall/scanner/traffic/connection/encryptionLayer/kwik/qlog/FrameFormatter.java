@@ -21,7 +21,7 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.qlog
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.ack.Range;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.frame.*;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.packet.QuicPacket;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import javax.json.stream.JsonGenerator;
 import java.time.Instant;

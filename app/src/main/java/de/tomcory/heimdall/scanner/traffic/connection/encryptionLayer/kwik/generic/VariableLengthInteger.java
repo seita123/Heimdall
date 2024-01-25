@@ -18,7 +18,7 @@
  */
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.generic;
 
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.io.EOFException;
 import java.io.IOException;

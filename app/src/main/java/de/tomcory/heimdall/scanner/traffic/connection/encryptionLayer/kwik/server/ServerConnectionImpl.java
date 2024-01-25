@@ -38,15 +38,15 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.strea
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.tls.QuicTransportParametersExtension;
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection;
 
-import net.luminis.tls.NewSessionTicket;
-import net.luminis.tls.TlsConstants;
-import net.luminis.tls.TlsProtocolException;
-import net.luminis.tls.alert.MissingExtensionAlert;
-import net.luminis.tls.alert.NoApplicationProtocolAlert;
-import net.luminis.tls.extension.ApplicationLayerProtocolNegotiationExtension;
-import net.luminis.tls.extension.Extension;
-import net.luminis.tls.handshake.*;
-import net.luminis.tls.util.ByteUtils;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.NewSessionTicket;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsProtocolException;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.alert.MissingExtensionAlert;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.alert.NoApplicationProtocolAlert;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.extension.ApplicationLayerProtocolNegotiationExtension;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.extension.Extension;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.*;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
