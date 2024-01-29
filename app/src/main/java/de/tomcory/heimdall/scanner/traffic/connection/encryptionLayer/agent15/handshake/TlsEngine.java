@@ -102,8 +102,8 @@ public abstract class TlsEngine implements MessageProcessor, TrafficSecrets {
             }
             else if (namedGroup == x25519 || namedGroup == x448) {
                 keyPairGenerator = KeyPairGenerator.getInstance("XDH");
-                NamedParameterSpec paramSpec = new NamedParameterSpec(namedGroup.toString().toUpperCase());  // x25519 => X25519
-                keyPairGenerator.initialize(paramSpec);
+//                NamedParameterSpec paramSpec = new NamedParameterSpec(namedGroup.toString().toUpperCase());  // x25519 => X25519
+                keyPairGenerator.initialize(255);
             }
             else {
                 throw new RuntimeException("unsupported group " + namedGroup);

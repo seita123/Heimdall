@@ -40,6 +40,8 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -72,16 +74,16 @@ public class ServerConnector {
     private TransportLayerConnection transportLayerConnection;
 
 
-    public ServerConnector(TransportLayerConnection transportLayerConnection, InputStream certificateFile, InputStream certificateKeyFile, List<Version> supportedVersions, boolean requireRetry, Logger log) throws Exception {
+    public ServerConnector(TransportLayerConnection transportLayerConnection, List<X509Certificate> certificateFile, PrivateKey certificateKeyFile, List<Version> supportedVersions, boolean requireRetry, Logger log) throws Exception {
         this.supportedVersions = supportedVersions;
         this.requireRetry = requireRetry;
         this.log = Objects.requireNonNull(log);
         this.transportLayerConnection = transportLayerConnection;
 
-        String key = new String(InputStreamCompat.readAllBytes(certificateKeyFile), Charset.defaultCharset());
-        key = key.trim();
-        InputStream keyStream = new ByteArrayInputStream(key.getBytes(StandardCharsets.UTF_8));
-        tlsEngineFactory = new TlsServerEngineFactory(certificateFile, keyStream);
+//        String key = new String(InputStreamCompat.readAllBytes(certificateKeyFile), Charset.defaultCharset());
+//        key = key.trim();
+//        InputStream keyStream = new ByteArrayInputStream(key.getBytes(StandardCharsets.UTF_8));
+        tlsEngineFactory = new TlsServerEngineFactory(certificateFile, certificateKeyFile);
         applicationProtocolRegistry = new ApplicationProtocolRegistry();
         connectionRegistry = new ServerConnectionRegistryImpl(log);
         serverConnectionFactory = new ServerConnectionFactory(CONNECTION_ID_LENGTH, transportLayerConnection, tlsEngineFactory,

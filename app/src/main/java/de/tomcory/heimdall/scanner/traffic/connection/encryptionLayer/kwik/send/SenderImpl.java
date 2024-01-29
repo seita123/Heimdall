@@ -421,10 +421,10 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
 
         if (isServerSender){
             transportLayerConnection.wrapInbound(datagramData);
-            System.out.println("Server sends: " + Arrays.toString(datagramData));
+            System.out.println("Kwik Server sends: " + Arrays.toString(datagramData));
         } else {
             transportLayerConnection.wrapOutbound(datagramData);
-            System.out.println("Client sends: " + Arrays.toString(datagramData));
+            System.out.println("Kwik Client sends: " + Arrays.toString(datagramData));
         }
         // socket.send(datagram);
         datagramsSent++;

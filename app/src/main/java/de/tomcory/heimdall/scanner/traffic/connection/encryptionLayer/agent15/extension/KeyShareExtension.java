@@ -47,6 +47,8 @@ import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.age
 import org.bouncycastle.asn1.edec.EdECObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.crypto.params.X25519PublicKeyParameters;
+import org.bouncycastle.crypto.util.PublicKeyFactory;
 
 /**
  * The TLS "key_share" extension contains the endpoint's cryptographic parameters.
@@ -218,14 +220,25 @@ public class KeyShareExtension extends Extension {
                 writeAffine(buffer, affineY);
             }
             else if (keyShare.getNamedGroup() == x25519 || keyShare.getNamedGroup() == x448) {
-                byte[] raw = ((XECPublicKey) keyShare.getKey()).getU().toByteArray();
+//                byte[] raw = ((XECPublicKey) keyShare.getKey()).getU().toByteArray();
+
+                // try of the new Version with no >SDK 28 functions
+                byte[] publicKeyBytes = keyShare.getKey().getEncoded();
+                X25519PublicKeyParameters x25519PublicKeyParameters = null;
+                try {
+                    x25519PublicKeyParameters = (X25519PublicKeyParameters) PublicKeyFactory.createKey(publicKeyBytes);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                byte[] raw = x25519PublicKeyParameters.getEncoded();
+
                 if (raw.length > CURVE_KEY_LENGTHS.get(keyShare.getNamedGroup())) {
                     throw new RuntimeException("Invalid " + keyShare.getNamedGroup() + " key length: " + raw.length);
                 }
                 if (raw.length < CURVE_KEY_LENGTHS.get(keyShare.getNamedGroup())) {
                     // Must pad with leading zeros, but as the encoding is little endian, it is easier to first reverse...
                     reverse(raw);
-                    // ... and than pad with zeroes up to the required ledngth
+                    // ... and than pad with zeroes up to the required length
                     byte[] padded = Arrays.copyOf(raw, CURVE_KEY_LENGTHS.get(keyShare.getNamedGroup()));
                     raw = padded;
                 }
@@ -328,11 +341,14 @@ public class KeyShareExtension extends Extension {
 
     static PublicKey rawToEncodedXDHPublicKey(TlsConstants.NamedGroup curve, byte[] keyData) {
         try {
-            System.out.println("got into the function rawToEncodedXDHPublicKey");
+//            System.out.println("got into the function rawToEncodedXDHPublicKey");
+            // Encoding is little endian, so reverse the bytes.
+            reverse(keyData);
             KeyFactory keyFactory = KeyFactory.getInstance("XDH");
             SubjectPublicKeyInfo subjectPublicKeyInfo = new SubjectPublicKeyInfo(new AlgorithmIdentifier(EdECObjectIdentifiers.id_X25519), keyData);
             X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(subjectPublicKeyInfo.getEncoded());
             return keyFactory.generatePublic(x509EncodedKeySpec);
+
             // Encoding is little endian, so reverse the bytes.
 //            reverse(keyData);
 //            BigInteger u = new BigInteger(keyData);

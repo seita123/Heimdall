@@ -215,6 +215,11 @@ class QuicConnection(
             val fakeCert = fakeCertData?.certificate
 //            val certBytes: ByteArray? = fakeCert?.encoded
 //            val certificateInputStream = ByteArrayInputStream(certBytes)
+            val certs: MutableList<X509Certificate> = java.util.ArrayList()
+            if (fakeCert != null) {
+                certs.add(fakeCert)
+            }
+
             val prvcert: String = Base64.getEncoder().encodeToString(fakeCert?.encoded)
             val certStream: InputStream = ByteArrayInputStream(prvcert.toByteArray(StandardCharsets.UTF_8))
 
@@ -228,23 +233,19 @@ class QuicConnection(
             val supportedVersions: MutableList<Version> = ArrayList<Version>()
             supportedVersions.add(Version.QUIC_version_1)
             val log: Logger = SysOutLogger()
+            log.timeFormat(Logger.TimeFormat.Long);
+            log.logWarning(true);
+            log.logInfo(true);
             val requireRetry = false
 
             serverConnector = ServerConnector(
                 transportLayer,
-                certStream,
-                keyStream,
+                certs,
+                fakeKey,
                 supportedVersions,
                 requireRetry,
                 log
             )
-
-//            serverConnector!!.registerApplicationProtocol("h3", ApplicationProtocolConnectionFactory(){
-//                @Override
-//                fun createConnection(protocol: String, quicConnection: QuicConnection): ApplicationProtocolConnection {
-//                    return BasicConnection()
-//                }
-//            });
 
             serverConnector!!.registerApplicationProtocol(
                 "h3",
@@ -263,7 +264,7 @@ class QuicConnection(
             // Probably different hostname + port needed?
             serverConnector!!.receiver?.receive(originalClientHello, transportLayer.ipPacketBuilder.localAddress.hostAddress, transportLayer.localPort)
 
-            Timber.d("quic$id Client facing QUIC connection established.")
+            Timber.d("quic$id Client facing Kwik Server Connector created an handshake process started.")
             connectionState = ConnectionState.CLIENT_HANDSHAKE
 
         } catch (e: Exception){

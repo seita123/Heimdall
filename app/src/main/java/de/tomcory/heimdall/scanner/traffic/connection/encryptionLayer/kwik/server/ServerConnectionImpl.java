@@ -258,7 +258,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
         // "In this document, the TLS handshake is considered complete when the TLS stack has reported that the handshake
         //  is complete. This happens when the TLS stack has both sent a Finished message and verified the peer's Finished message."
         sender.discard(PnSpace.Handshake, "tls handshake confirmed");
-        connectionSecrets.discardKeys(EncryptionLevel.Handshake);
+//        connectionSecrets.discardKeys(EncryptionLevel.Handshake);
         // https://tools.ietf.org/html/draft-ietf-quic-tls-32#section-4.9.2
         // "The server MUST send a HANDSHAKE_DONE frame as soon as it completes the handshake."
         sendHandshakeDone(new HandshakeDoneFrame(quicVersion.getVersion()));

@@ -51,9 +51,11 @@ public class TlsServerEngineFactory {
     private TlsSessionRegistry tlsSessionRegistry = new TlsSessionRegistryImpl();
 
 
-    public TlsServerEngineFactory(InputStream certificateFile, InputStream certificateKeyFile) throws IOException, CertificateException, InvalidKeySpecException {
-        this.serverCertificates = readCertificates(certificateFile);
-        this.certificateKey = readPrivateKey(certificateKeyFile);
+    public TlsServerEngineFactory(List<X509Certificate> certificateFile, PrivateKey certificateKeyFile) throws IOException, CertificateException, InvalidKeySpecException {
+//        this.serverCertificates = readCertificates(certificateFile);
+        this.serverCertificates = certificateFile;
+//        this.certificateKey = readPrivateKey(certificateKeyFile);
+        this.certificateKey = certificateKeyFile;
     }
 
     public de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.TlsServerEngine createServerEngine(ServerMessageSender serverMessageSender, TlsStatusEventHandler tlsStatusHandler) {
