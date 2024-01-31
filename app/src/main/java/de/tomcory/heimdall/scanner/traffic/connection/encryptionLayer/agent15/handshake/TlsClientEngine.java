@@ -258,7 +258,7 @@ public class TlsClientEngine extends TlsEngine implements ClientMessageProcessor
         // https://tools.ietf.org/html/rfc8446#section-4.1.3
         // "ServerHello messages additionally contain either the "pre_shared_key" extension or the "key_share" extension,
         // or both (when using a PSK with (EC)DHE key establishment)."
-        if (keyShare.isEmpty() && preSharedKey.isEmpty()) {
+        if (!keyShare.isPresent() && !preSharedKey.isPresent()) {
             throw new MissingExtensionAlert(" either the pre_shared_key extension or the key_share extension must be present");
         }
 

@@ -119,9 +119,7 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
         // This implementation (yet) only supports secp256r1 and x25519
         List<TlsConstants.NamedGroup> serverSupportedGroups = List.of(TlsConstants.NamedGroup.secp256r1, x25519);
         if (supportedGroupsExt.getNamedGroups().stream()
-                .filter(serverSupportedGroups::contains)
-                .findFirst()
-                .isEmpty()) {
+                .noneMatch(serverSupportedGroups::contains)) {
             throw new HandshakeFailureAlert(String.format("Failed to negotiate supported group (server only supports %s)", serverSupportedGroups));
         }
 

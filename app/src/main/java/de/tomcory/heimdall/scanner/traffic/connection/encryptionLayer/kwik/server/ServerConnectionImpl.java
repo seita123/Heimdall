@@ -295,7 +295,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
         Optional<Extension> alpnExtension = extensions.stream()
                 .filter(ext -> ext instanceof ApplicationLayerProtocolNegotiationExtension)
                 .findFirst();
-        if (alpnExtension.isEmpty()) {
+        if (!alpnExtension.isPresent()) {
             throw new MissingExtensionAlert("missing application layer protocol negotiation extension");
         }
         else {
@@ -317,7 +317,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
         Optional<Extension> tpExtension = extensions.stream()
                 .filter(ext -> ext instanceof QuicTransportParametersExtension)
                 .findFirst();
-        if (tpExtension.isEmpty()) {
+        if (!tpExtension.isPresent()) {
             throw new MissingExtensionAlert("missing quic transport parameters extension");
         }
         else {

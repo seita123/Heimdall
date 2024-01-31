@@ -29,8 +29,12 @@ import java.nio.charset.Charset;
 import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.XECPublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Objects;
 
 import static de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.util.ByteUtils.bytesToHex;
+
+import org.bouncycastle.crypto.params.X25519PrivateKeyParameters;
 
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.Logger;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants;
@@ -135,11 +139,13 @@ public class TlsState {
     public void computeSharedSecret() {
         try {
             KeyAgreement keyAgreement;
+            String testalgo = serverSharedKey.getAlgorithm();
             if (serverSharedKey instanceof ECPublicKey) {
                 keyAgreement = KeyAgreement.getInstance("ECDH");
             }
-            else if (serverSharedKey instanceof XECPublicKey) {
+            else if (Objects.equals(serverSharedKey.getAlgorithm(), "XDH")) { // Todo: find out what the key is now!
                 keyAgreement = KeyAgreement.getInstance("XDH");
+//                com.android.org.conscrypt.OpenSSLX25519PublicKey;
             }
             else {
                 throw new RuntimeException("Unsupported key type");

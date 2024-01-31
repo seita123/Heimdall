@@ -111,7 +111,7 @@ public class ServerConnector {
     protected void receiveLoop() {
         while (true) {
             try {
-                RawPacket rawPacket = receiver.get((int) Duration.ofDays(10 * 365).toSeconds());
+                RawPacket rawPacket = receiver.get((int) Duration.ofDays(10 * 365).getSeconds());
                 process(rawPacket);
             }
             catch (InterruptedException e) {
@@ -174,9 +174,9 @@ public class ServerConnector {
                     data.rewind();
 
                     Optional<ServerConnectionProxy> connection = connectionRegistry.isExistingConnection(clientAddress, dcid);
-                    if (connection.isEmpty()) {
+                    if (!connection.isPresent()) {
                         synchronized (this) {
-                            if (mightStartNewConnection(data, version, dcid) && connectionRegistry.isExistingConnection(clientAddress, dcid).isEmpty()) {
+                            if (mightStartNewConnection(data, version, dcid) && !connectionRegistry.isExistingConnection(clientAddress, dcid).isPresent()) {
                                 connection = Optional.of(createNewConnection(version, clientAddress, scid, dcid));
                             } else if (initialWithUnspportedVersion(data, version)) {
                                 log.received(Instant.now(), 0, EncryptionLevel.Initial, dcid, scid);
@@ -198,8 +198,14 @@ public class ServerConnector {
         data.get(dcid);
         data.rewind();
         Optional<ServerConnectionProxy> connection = connectionRegistry.isExistingConnection(clientAddress, dcid);
-        connection.ifPresentOrElse(c -> c.parsePackets(0, Instant.now(), data, clientAddress),
-                () -> log.warn("Discarding short header packet addressing non existent connection " + ByteUtils.bytesToHex(dcid)));
+//        connection.ifPresentOrElse(c -> c.parsePackets(0, Instant.now(), data, clientAddress),
+//                () -> log.warn("Discarding short header packet addressing non existent connection " + ByteUtils.bytesToHex(dcid)));
+
+        if (connection.isPresent()){
+            connection.get().parsePackets(0, Instant.now(), data, clientAddress);
+        } else {
+            log.warn("Discarding short header packet addressing non existent connection " + ByteUtils.bytesToHex(dcid));
+        }
     }
 
     private boolean mightStartNewConnection(ByteBuffer packetBytes, int version, byte[] dcid) {

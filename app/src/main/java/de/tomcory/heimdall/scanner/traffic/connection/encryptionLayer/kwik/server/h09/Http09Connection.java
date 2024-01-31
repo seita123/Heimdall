@@ -18,6 +18,8 @@
  */
 package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.h09;
 
+import com.google.firebase.crashlytics.buildtools.reloc.org.apache.commons.io.IOUtils;
+
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicConnection;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicConstants;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.QuicStream;
@@ -61,7 +63,8 @@ public class Http09Connection implements ApplicationProtocolConnection {
                 OutputStream outputStream = quicStream.getOutputStream();
                 if (file != null && file.exists() && file.isFile() && file.canRead()) {
                     FileInputStream fileInputStream = new FileInputStream(file);
-                    fileInputStream.transferTo(outputStream);
+//                    fileInputStream.transferTo(outputStream);
+                    IOUtils.copy(fileInputStream, outputStream);
                     fileInputStream.close();
                 }
                 else if (fileName.equals("version") || fileName.equals("version.txt")) {

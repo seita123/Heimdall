@@ -129,8 +129,8 @@ public class StreamFrame extends QuicFrame implements StreamElement, Comparable<
         frameLength = buffer.position() - startPosition;
 
         log.decrypted("Stream data", streamData);
-        System.out.println("Stream Info: " + this.toString());
-        System.out.println("StreamData: " + Arrays.toString(streamData));
+//        System.out.println("Stream Info: " + this.toString());
+//        System.out.println("StreamData: " + Arrays.toString(streamData));
 
         return this;
     }

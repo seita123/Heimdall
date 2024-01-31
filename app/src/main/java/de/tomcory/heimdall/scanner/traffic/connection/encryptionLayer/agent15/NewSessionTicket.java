@@ -24,6 +24,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.ha
 
 import java.nio.ByteBuffer;
 import java.util.Date;
+import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
 
@@ -69,7 +70,7 @@ public class NewSessionTicket {
         }
         if (buffer.remaining() > 0) {
             short cipherEncoding = buffer.getShort();
-            cipher = Stream.of(de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants.CipherSuite.values()).filter(c -> c.value == cipherEncoding).findAny().orElseThrow();
+            cipher = Stream.of(de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants.CipherSuite.values()).filter(c -> c.value == cipherEncoding).findAny().orElseThrow(NoSuchElementException::new);
         }
         else {
             cipher = de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants.CipherSuite.TLS_AES_128_GCM_SHA256;

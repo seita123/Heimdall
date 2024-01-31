@@ -41,7 +41,7 @@ class QuicConnection(
         // doMitm = false
     }
 
-    private var connectionState: ConnectionState = ConnectionState.NEW;
+    private var connectionState: ConnectionState = ConnectionState.NEW
 
     private var hostname: String = transportLayer.remoteHost ?: transportLayer.ipPacketBuilder.remoteAddress.hostAddress ?: ""
 
@@ -171,7 +171,7 @@ class QuicConnection(
     private fun createQUICClient(record: ByteArray){
         println("Creating QUIC Client")
         // Enables the use of KWIK for Android
-        PlatformMapping.usePlatformMapping(PlatformMapping.Platform.Android);
+        PlatformMapping.usePlatformMapping(PlatformMapping.Platform.Android)
 
         // Establish and adjust the QuicClientConnection Builder
         val connectionBuilder = QuicClientConnection.newBuilder()
@@ -233,9 +233,19 @@ class QuicConnection(
             val supportedVersions: MutableList<Version> = ArrayList<Version>()
             supportedVersions.add(Version.QUIC_version_1)
             val log: Logger = SysOutLogger()
-            log.timeFormat(Logger.TimeFormat.Long);
-            log.logWarning(true);
-            log.logInfo(true);
+            log.timeFormat(Logger.TimeFormat.Long)
+            log.logWarning(true)
+            log.logInfo(true)
+//            log.logRaw(true)
+//            log.logDecrypted(true)
+            log.logDebug(true)
+//            log.logInfo(true)
+//            log.logPackets(true)
+//            log.logSecrets(true)
+//            log.logCongestionControl(true)
+            log.logStats(true)
+//            log.logFlowControl(true)
+//            log.logRecovery(true)
             val requireRetry = false
 
             serverConnector = ServerConnector(
@@ -397,4 +407,4 @@ private enum class ConnectionState {
     CLOSED
 }
 
-class BasicConnection(): ApplicationProtocolConnection;
+class BasicConnection(): ApplicationProtocolConnection

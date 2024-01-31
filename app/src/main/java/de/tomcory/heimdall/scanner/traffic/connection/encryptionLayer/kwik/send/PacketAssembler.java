@@ -138,12 +138,12 @@ public class PacketAssembler {
                 // First try to find a frame that will leave space for optional frame (if any)
                 int proposedSize = available - estimatedSize - optionalAckSize;
                 Optional<SendRequest> next = requestQueue.next(proposedSize);
-                if (next.isEmpty() && optionalAckSize > 0) {
+                if (!next.isPresent() && optionalAckSize > 0) {
                     // The optional ack does not fit, try without
                     proposedSize = available - estimatedSize;
                     next = requestQueue.next(proposedSize);
                 }
-                if (next.isEmpty()) {
+                if (!next.isPresent()) {
                     // Nothing fits within available space
                     break;
                 }

@@ -397,6 +397,7 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
                 catch (MissingKeysException e) {
                     if (e.getMissingKeysCause() == MissingKeysException.Cause.DiscardedKeys) {
                         log.warn("Packet not sent because keys are discarded: " + packet);
+//                        System.out.println("test missing keys");
                         packetIterator.remove();
                     }
                     else {

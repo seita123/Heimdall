@@ -24,6 +24,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -97,7 +98,7 @@ public abstract class ConnectionIdRegistry {
         return connectionIds.entrySet().stream()
                 .filter(entry -> Arrays.equals(entry.getValue().getConnectionId(), currentConnectionId))
                 .mapToInt(entry -> entry.getKey())
-                .findFirst().orElseThrow();
+                .findFirst().orElseThrow(NoSuchElementException::new);
     }
 
     protected byte[] generateConnectionId() {
