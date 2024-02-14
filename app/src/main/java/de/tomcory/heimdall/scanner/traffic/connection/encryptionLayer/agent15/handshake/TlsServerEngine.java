@@ -117,7 +117,8 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
                 .orElseThrow(() -> new MissingExtensionAlert("supported groups extension is required in Client Hello"));
 
         // This implementation (yet) only supports secp256r1 and x25519
-        List<TlsConstants.NamedGroup> serverSupportedGroups = List.of(TlsConstants.NamedGroup.secp256r1, x25519);
+//        List<TlsConstants.NamedGroup> serverSupportedGroups = List.of(TlsConstants.NamedGroup.secp256r1, x25519);
+        List<TlsConstants.NamedGroup> serverSupportedGroups = List.of(TlsConstants.NamedGroup.secp256r1);
         if (supportedGroupsExt.getNamedGroups().stream()
                 .noneMatch(serverSupportedGroups::contains)) {
             throw new HandshakeFailureAlert(String.format("Failed to negotiate supported group (server only supports %s)", serverSupportedGroups));
@@ -132,6 +133,7 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
                 .filter(entry -> serverSupportedGroups.contains(entry.getNamedGroup()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalParameterAlert("key share named group not supported (and no HelloRetryRequest support)"));
+        // Todo: include HelloRetryRequest here
 
        SignatureAlgorithmsExtension signatureAlgorithmsExtension = (SignatureAlgorithmsExtension) clientHello.getExtensions().stream()
                 .filter(ext -> ext instanceof SignatureAlgorithmsExtension)

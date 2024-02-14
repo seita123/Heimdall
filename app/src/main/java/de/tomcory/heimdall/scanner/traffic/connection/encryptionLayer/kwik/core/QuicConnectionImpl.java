@@ -453,6 +453,7 @@ public abstract class QuicConnectionImpl implements QuicConnection, PacketProces
             log.receivedPacketInfo(getCryptoStream(packet.getEncryptionLevel()).toStringReceived());
         } catch (TlsProtocolException e) {
             cryptoProcessingErrorOcurred(e);
+            e.printStackTrace();
             immediateCloseWithError(packet.getEncryptionLevel(), quicError(e), e.getMessage());
         }
     }

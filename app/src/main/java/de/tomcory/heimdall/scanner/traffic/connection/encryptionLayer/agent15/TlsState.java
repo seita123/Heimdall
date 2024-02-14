@@ -139,7 +139,7 @@ public class TlsState {
     public void computeSharedSecret() {
         try {
             KeyAgreement keyAgreement;
-            String testalgo = serverSharedKey.getAlgorithm();
+//            String testalgo = serverSharedKey.getAlgorithm();
             if (serverSharedKey instanceof ECPublicKey) {
                 keyAgreement = KeyAgreement.getInstance("ECDH");
             }

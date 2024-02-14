@@ -124,7 +124,7 @@ public class ServerConnector {
         }
     }
 
-    protected void process(RawPacket rawPacket) {
+    public void process(RawPacket rawPacket) {
         ByteBuffer data = rawPacket.getData();
         int flags = data.get();
         data.rewind();

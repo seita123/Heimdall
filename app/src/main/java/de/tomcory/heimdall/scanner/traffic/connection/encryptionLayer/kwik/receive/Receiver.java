@@ -22,6 +22,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.log.Logger;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnector;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -51,6 +52,12 @@ public class Receiver {
     private volatile boolean isClosing = false;
     private volatile boolean changing = false;
     private int counter = 0;
+    private ServerConnector serverConnector = null;
+
+    public Receiver(Logger log, Consumer<Throwable> abortCallback, ServerConnector serverConnector){
+        this(log, abortCallback);
+        this.serverConnector = serverConnector;
+    }
 
     public Receiver(Logger log, Consumer<Throwable> abortCallback) {
         this(log, abortCallback, d -> true);
@@ -88,6 +95,11 @@ public class Receiver {
         DatagramPacket receivedDatagram = new DatagramPacket(receivedPacket, receivedPacket.length, address.getAddress(), address.getPort());
 
         RawPacket rawPacket = new RawPacket(receivedDatagram, timeReceived, counter++);
+//        if (serverConnector != null){
+//            serverConnector.process(rawPacket);
+//        } else {
+//            receivedPacketsQueue.add(rawPacket);
+//        }
         receivedPacketsQueue.add(rawPacket);
     }
 

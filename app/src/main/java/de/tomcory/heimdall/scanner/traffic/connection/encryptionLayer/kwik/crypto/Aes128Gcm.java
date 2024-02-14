@@ -141,6 +141,7 @@ public class Aes128Gcm extends BaseAeadImpl {
             aeadCipher.updateAAD(associatedData);
             return aeadCipher.doFinal(message);
         } catch (AEADBadTagException decryptError) {
+            decryptError.printStackTrace();
             throw new DecryptionException();
         } catch (InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException e) {
             // Programming error

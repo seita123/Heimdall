@@ -13,6 +13,7 @@ import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.serve
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnectionImpl
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.kwik.server.ServerConnector
 import de.tomcory.heimdall.scanner.traffic.connection.transportLayer.TransportLayerConnection
+import de.tomcory.heimdall.util.ByteUtils
 import org.pcap4j.packet.Packet
 import timber.log.Timber
 import java.io.ByteArrayInputStream
@@ -87,6 +88,7 @@ class QuicConnection(
         //TODO: implement
         val recordType = parseRecordType(packet.rawData)
         println("unwrapOutbound $id + RecordType $recordType + ConnectionState: $connectionState")
+        println(ByteUtils.bytesToHex(packet.rawData))
 
         // The client starts sending application data, therefore the handshake has been completed
         if (recordType == RecordType.APP){
@@ -181,6 +183,13 @@ class QuicConnection(
         val address = "//" + host + ":" + transportLayer.remotePort
         val uri = URI(address)
 
+//        val log: Logger = SysOutLogger()
+//        log.timeFormat(Logger.TimeFormat.Long)
+//        log.logWarning(true)
+//        log.logInfo(true)
+//        log.logDebug(true)
+//        connectionBuilder.logger(log)
+
         connectionBuilder.uri(uri)
         connectionBuilder.noServerCertificateCheck()
         connectionBuilder.applicationProtocol("h3")
@@ -234,16 +243,16 @@ class QuicConnection(
             supportedVersions.add(Version.QUIC_version_1)
             val log: Logger = SysOutLogger()
             log.timeFormat(Logger.TimeFormat.Long)
-            log.logWarning(true)
-            log.logInfo(true)
+//            log.logWarning(true)
+//            log.logInfo(true)
 //            log.logRaw(true)
 //            log.logDecrypted(true)
-            log.logDebug(true)
+//            log.logDebug(true)
 //            log.logInfo(true)
 //            log.logPackets(true)
 //            log.logSecrets(true)
 //            log.logCongestionControl(true)
-            log.logStats(true)
+//            log.logStats(true)
 //            log.logFlowControl(true)
 //            log.logRecovery(true)
             val requireRetry = false
