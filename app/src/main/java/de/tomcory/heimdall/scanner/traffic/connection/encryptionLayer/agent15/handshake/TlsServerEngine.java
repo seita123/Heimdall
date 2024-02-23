@@ -129,11 +129,22 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
                 .findFirst()
                 .orElseThrow(() -> new MissingExtensionAlert("key share extension is required in Client Hello"));
 
-        KeyShareExtension.KeyShareEntry keyShareEntry = keyShareExtension.getKeyShareEntries().stream()
+        Optional<KeyShareExtension.KeyShareEntry> keyShareEntry = keyShareExtension.getKeyShareEntries().stream()
                 .filter(entry -> serverSupportedGroups.contains(entry.getNamedGroup()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalParameterAlert("key share named group not supported (and no HelloRetryRequest support)"));
-        // Todo: include HelloRetryRequest here
+                .findFirst();
+//                .orElseThrow(() -> new IllegalParameterAlert("key share named group not supported (and no HelloRetryRequest support)"));
+
+        // If KeyShareEntry not secp256r1, but support available, send HelloRetryRequest message to request new CH
+        if (!keyShareEntry.isPresent()){
+            List<Extension> extensions = List.of(
+                    new SupportedVersionsExtension(TlsConstants.HandshakeType.server_hello),
+                    new KeyShareExtension(null, serverSupportedGroups.get(0), TlsConstants.HandshakeType.server_hello)
+            );
+            HelloRetryRequest helloRetryRequest = new HelloRetryRequest(selectedCipher, extensions);
+            serverMessageSender.send(helloRetryRequest);
+            status = Status.Start;
+            return;
+        }
 
        SignatureAlgorithmsExtension signatureAlgorithmsExtension = (SignatureAlgorithmsExtension) clientHello.getExtensions().stream()
                 .filter(ext -> ext instanceof SignatureAlgorithmsExtension)
@@ -217,14 +228,14 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
         }
         transcriptHash.record(clientHello);
 
-        generateKeys(keyShareEntry.getNamedGroup());
+        generateKeys(keyShareEntry.get().getNamedGroup());
         state.setOwnKey(privateKey);
         state.computeEarlyTrafficSecret();
         statusHandler.earlySecretsKnown();
 
         List<Extension> extensions = List.of(
                 new SupportedVersionsExtension(TlsConstants.HandshakeType.server_hello),
-                new KeyShareExtension(publicKey, keyShareEntry.getNamedGroup(), TlsConstants.HandshakeType.server_hello));
+                new KeyShareExtension(publicKey, keyShareEntry.get().getNamedGroup(), TlsConstants.HandshakeType.server_hello));
         if (selectedIdentity != null) {
             extensions = new ArrayList<>(extensions);
             extensions.add(new ServerPreSharedKeyExtension(selectedIdentity.shortValue()));
@@ -236,7 +247,7 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
 
         // Update state
         transcriptHash.record(serverHello);
-        state.setPeerKey(keyShareEntry.getKey());
+        state.setPeerKey(keyShareEntry.get().getKey());
 
         // Compute keys
         state.computeSharedSecret();

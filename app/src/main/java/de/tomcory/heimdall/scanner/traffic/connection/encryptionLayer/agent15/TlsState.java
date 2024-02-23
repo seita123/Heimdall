@@ -139,13 +139,11 @@ public class TlsState {
     public void computeSharedSecret() {
         try {
             KeyAgreement keyAgreement;
-//            String testalgo = serverSharedKey.getAlgorithm();
             if (serverSharedKey instanceof ECPublicKey) {
                 keyAgreement = KeyAgreement.getInstance("ECDH");
             }
             else if (Objects.equals(serverSharedKey.getAlgorithm(), "XDH")) { // Todo: find out what the key is now!
                 keyAgreement = KeyAgreement.getInstance("XDH");
-//                com.android.org.conscrypt.OpenSSLX25519PublicKey;
             }
             else {
                 throw new RuntimeException("Unsupported key type");

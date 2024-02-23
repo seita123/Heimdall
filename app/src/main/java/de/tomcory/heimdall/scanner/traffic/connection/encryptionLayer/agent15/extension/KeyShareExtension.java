@@ -191,6 +191,18 @@ public class KeyShareExtension extends Extension {
 
     @Override
     public byte[] getBytes() {
+        // If HelloRetryRequest with Named Group only.
+        if (handshakeType == TlsConstants.HandshakeType.server_hello && keyShareEntries.size() == 1){
+            if (keyShareEntries.get(0).getKey() == null){
+                short extensionLength = 2;
+                ByteBuffer buffer = ByteBuffer.allocate(4 + extensionLength);
+                buffer.putShort(TlsConstants.ExtensionType.key_share.value);
+                buffer.putShort(extensionLength);  // Extension data length (in bytes)
+                buffer.putShort(keyShareEntries.get(0).getNamedGroup().value);
+                return buffer.array();
+            }
+        }
+
         short keyShareEntryLength = (short) keyShareEntries.stream()
                 .map(ks -> ks.getNamedGroup())
                 .mapToInt(g -> CURVE_KEY_LENGTHS.get(g))
