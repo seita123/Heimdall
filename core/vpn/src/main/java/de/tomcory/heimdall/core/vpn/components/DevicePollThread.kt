@@ -98,6 +98,12 @@ class DevicePollThread internal constructor(
             if(rawPacket.isNotEmpty()) {
                 val parsedPacket = parsePacket(rawPacket)
 
+                if (parsedPacket != null) {
+                    if (parsedPacket.header.protocol.valueAsString() == "17"){
+                        PcapExportService.copyDataToPCAP(parsedPacket.rawData)
+                    }
+                }
+
                 // forward packet to traffic handler
                 if (parsedPacket != null) {
                     val transportProtocol = when(parsedPacket.payload) {

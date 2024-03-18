@@ -52,6 +52,10 @@ class DeviceWriteThread(
 
         val packet = msg.obj as IpPacket
 
+        if (packet.header.protocol.valueAsString() == "17"){
+            PcapExportService.copyDataToPCAP(packet.rawData)
+        }
+
         try {
             outputStream.write(packet.rawData)
             outputStream.flush()

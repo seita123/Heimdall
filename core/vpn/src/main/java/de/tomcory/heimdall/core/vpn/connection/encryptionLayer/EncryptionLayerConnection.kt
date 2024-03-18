@@ -4,6 +4,7 @@ import de.tomcory.heimdall.core.vpn.components.ComponentManager
 import de.tomcory.heimdall.core.vpn.connection.appLayer.AppLayerConnection
 import de.tomcory.heimdall.core.vpn.connection.appLayer.RawConnection
 import de.tomcory.heimdall.core.vpn.connection.transportLayer.TransportLayerConnection
+import de.tomcory.heimdall.core.vpn.connection.transportLayer.UdpConnection
 import org.pcap4j.packet.Packet
 import timber.log.Timber
 
@@ -119,7 +120,7 @@ abstract class EncryptionLayerConnection(
                 PlaintextConnection(id, transportLayer, componentManager)
             } else if (detectTls(rawPayload)) {
                 TlsConnection(id, transportLayer, componentManager)
-            } else if(detectQuic(rawPayload)) {
+            } else if(detectQuic(rawPayload, transportLayer)) {
                 QuicConnection(id, transportLayer, componentManager)
             } else {
                 PlaintextConnection(id, transportLayer, componentManager)
@@ -145,18 +146,12 @@ abstract class EncryptionLayerConnection(
                     && rawPayload[5].toInt() == 1
         }
 
-        private fun detectQuic(rawPayload: ByteArray): Boolean {
-            if(rawPayload.isNotEmpty()) {
+        private fun detectQuic(rawPayload: ByteArray, transportLayer: TransportLayerConnection): Boolean {
+            if(rawPayload.isNotEmpty() and (transportLayer is UdpConnection) and (transportLayer.remotePort == 443)) {
                 val firstByte = rawPayload[0].toUByte().toInt()
-                if((firstByte and 0x80) != 0 && (firstByte and 0x40) != 0 && rawPayload.size >= 5) {
-                    // long header
-                    val version = rawPayload[1].toUByte().toInt() shl 24 or
-                            rawPayload[2].toUByte().toInt() shl 16 or
-                            rawPayload[3].toUByte().toInt() shl 8 or
-                            rawPayload[4].toUByte().toInt()
-                    if (version == 1 || version == 0) {
-                        return true
-                    }
+//                if ((firstByte and 0x20) != 0 && rawPayload.size >= 5){
+                if (rawPayload.size >= 5){
+                    return true
                 }
             }
             return false

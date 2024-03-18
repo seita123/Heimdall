@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         compileSdk = 34
-        minSdk = 24
+        minSdk = 26 // Todo: Talk to Tom and maybe reset to 24
     }
 }
 
@@ -34,4 +34,10 @@ dependencies {
 
     implementation (project(":core:database"))
     implementation (project(":core:util"))
+
+    // QUIC Stuff
+    implementation ("at.favre.lib:hkdf:2.0.0")
+    implementation ("org.glassfish:javax.json:1.1.4")
+    implementation ("commons-cli:commons-cli:1.4")
+    implementation ("com.google.firebase:firebase-crashlytics-buildtools:2.9.9")
 }
