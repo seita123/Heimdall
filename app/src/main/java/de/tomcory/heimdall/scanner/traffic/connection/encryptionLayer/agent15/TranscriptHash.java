@@ -20,6 +20,7 @@ package de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15;
 
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.TlsConstants;
 import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.HandshakeMessage;
+import de.tomcory.heimdall.scanner.traffic.connection.encryptionLayer.agent15.handshake.MessageHash;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -44,6 +45,8 @@ public class TranscriptHash {
         certificate_verify(15),
         finished(20),
         key_update(24),
+        message_hash(247),
+        hello_retry_request(248),
         server_certificate(249),
         server_certificate_verify(250),
         server_finished(251),
@@ -68,6 +71,8 @@ public class TranscriptHash {
     //   server CertificateVerify, server Finished, EndOfEarlyData, client
     //   Certificate, client CertificateVerify, client Finished."
     private static ExtendedHandshakeType[] hashedMessages = {
+            ExtendedHandshakeType.message_hash,
+            ExtendedHandshakeType.hello_retry_request,
             ExtendedHandshakeType.client_hello,
             ExtendedHandshakeType.server_hello,
             ExtendedHandshakeType.encrypted_extensions,
@@ -168,6 +173,14 @@ public class TranscriptHash {
         msgData.put(convert(msg.getType(), false), msg.getBytes());
     }
 
+    /**
+     * Records a HelloRetryRequest Message.
+     * @param msg
+     */
+    public void recordHelloRetryRequest(HandshakeMessage msg){
+        msgData.put(ExtendedHandshakeType.hello_retry_request, msg.getBytes());
+    }
+
     private byte[] getHash(ExtendedHandshakeType type) {
         if (! hashes.containsKey(type)) {
             computeHash(type);
@@ -175,7 +188,7 @@ public class TranscriptHash {
         return hashes.get(type);
     }
 
-   private void computeHash(ExtendedHandshakeType requestedType) {
+    private void computeHash(ExtendedHandshakeType requestedType) {
         for (ExtendedHandshakeType type: hashedMessages) {
             if (msgData.containsKey(type)) {
                 hashFunction.update(msgData.get(type));

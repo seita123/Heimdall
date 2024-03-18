@@ -42,6 +42,8 @@ class QuicConnection(
         // doMitm = false
     }
 
+//    override val protocol = "QUIC"
+
     private var connectionState: ConnectionState = ConnectionState.NEW
 
     private var hostname: String = transportLayer.remoteHost ?: transportLayer.ipPacketBuilder.remoteAddress.hostAddress ?: ""

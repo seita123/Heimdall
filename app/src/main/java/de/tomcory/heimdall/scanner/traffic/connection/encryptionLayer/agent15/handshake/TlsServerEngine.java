@@ -142,6 +142,15 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
             );
             HelloRetryRequest helloRetryRequest = new HelloRetryRequest(selectedCipher, extensions);
             serverMessageSender.send(helloRetryRequest);
+
+            TranscriptHash transcriptHashCH1 = new TranscriptHash(hashLength(selectedCipher));
+            transcriptHashCH1.record(clientHello);
+            byte[] hashCH1 = transcriptHashCH1.getHash(TlsConstants.HandshakeType.client_hello);
+            HandshakeMessage syntheticMsg = new MessageHash(hashCH1);
+
+            transcriptHash = new TranscriptHash(hashLength(selectedCipher));
+            transcriptHash.record(syntheticMsg);
+            transcriptHash.recordHelloRetryRequest(helloRetryRequest);
             status = Status.Start;
             return;
         }
@@ -221,7 +230,9 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
         }
         if (state == null) {
             // Resumption was not requested or not successful; init TLS state without PSK.
-            transcriptHash = new TranscriptHash(hashLength(selectedCipher));
+            if (transcriptHash == null){
+                transcriptHash = new TranscriptHash(hashLength(selectedCipher));
+            }
             state = new TlsState(transcriptHash, keyLength(selectedCipher), hashLength(selectedCipher));
             // The selectedIdentity indicates which PSK was used to resume the session; it must be null when session is not resumed.
             selectedIdentity = null;
