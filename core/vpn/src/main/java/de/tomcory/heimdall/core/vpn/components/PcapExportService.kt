@@ -46,7 +46,7 @@ class PcapExportService {
             }
         }
 
-        fun createGlobalHeader(): ByteArray? {
+        private fun createGlobalHeader(): ByteArray? {
             val buffer = ByteBuffer.allocate(24)
             buffer.order(ByteOrder.LITTLE_ENDIAN)
             buffer.putInt(-0x5e4d3c2c)
@@ -86,7 +86,7 @@ class PcapExportService {
         }
 
         // Generate a fake Ethernet Header (not used at the moment since Link Layer Header Type is specified to IPv4/IPv6).
-        private fun generateFakeEthernetHeader(): ByteArray? {
+        private fun generateFakeEthernetHeader(): ByteArray {
             val ethernetHeader = ByteArray(14) // Ethernet header is typically 14 bytes
 
             // Fill in source and destination MAC addresses (dummy values)

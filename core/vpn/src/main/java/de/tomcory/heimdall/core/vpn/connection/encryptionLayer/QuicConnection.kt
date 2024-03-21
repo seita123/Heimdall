@@ -36,7 +36,7 @@ class QuicConnection(
         if(id > 0) {
             Timber.d("quic$id Creating QUIC connection to ${transportLayer.ipPacketBuilder.remoteAddress.hostAddress}:${transportLayer.remotePort} (${transportLayer.remoteHost})")
         }
-        doMitm = false
+//        doMitm = false
     }
 
     override val protocol = "QUIC"
@@ -153,7 +153,6 @@ class QuicConnection(
         }
 
     }
-
 
     private fun handleInboundRecord(record: ByteArray, recordType: RecordType){
 
@@ -314,8 +313,11 @@ class QuicConnection(
                 }
             }
         }
-
     }
+
+    ////////////////////////////////////////////////////////////////////////
+    ///// Utility methods /////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
 
     // determine if short or long header and if long header which packet type
     private fun parseRecordType(record: ByteArray): RecordType {
@@ -324,7 +326,7 @@ class QuicConnection(
         // get the bits from the first byte
         val firstByte = record[0]
 
-        if (firstByte.toInt() and 0x80 == 0x80) {
+        if(firstByte.toInt() and 0x80 == 0x80) {
             // Long header packet
             val type: Int = firstByte.toInt() and 0x30 shr 4
             return when(type){
@@ -338,26 +340,7 @@ class QuicConnection(
             // Short header packet
             return RecordType.APP
         }
-
-//        return when(firstByte[0]){
-//            '0' -> RecordType.ONE_RTT
-//            '1' -> {
-//                when(firstByte[4]){     // only like this for version 1 QUIC
-//                    '0' -> RecordType.INITIAL
-//                    '1' -> RecordType.ZERO_RTT
-//                    '2' -> RecordType.HANDSHAKE
-//                    '3' -> RecordType.RETRY
-//                    else -> RecordType.INVALID
-//                }
-//            }
-//            else -> RecordType.INVALID
-//        }
     }
-
-    ////////////////////////////////////////////////////////////////////////
-    ///// Utility methods /////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////
-
 
 
 
