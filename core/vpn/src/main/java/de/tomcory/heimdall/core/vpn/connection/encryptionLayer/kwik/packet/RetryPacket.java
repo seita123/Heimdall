@@ -32,6 +32,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.util.ByteUtils;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.crypto.Aead;
@@ -127,7 +128,7 @@ public class RetryPacket extends QuicPacket {
     }
 
     @Override
-    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength) throws DecryptionException, InvalidPacketException {
+    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength, QuicConnection heimdallQuicConnection, Boolean isServer) throws DecryptionException, InvalidPacketException {
         log.debug("Parsing " + this.getClass().getSimpleName());
         if (buffer.remaining() < MIN_PACKET_LENGTH) {
             throw new InvalidPacketException();

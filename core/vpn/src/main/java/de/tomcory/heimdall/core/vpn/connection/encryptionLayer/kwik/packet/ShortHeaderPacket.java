@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.util.ByteUtils;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.crypto.Aead;
@@ -57,7 +58,7 @@ public class ShortHeaderPacket extends QuicPacket {
     }
 
     @Override
-    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength) throws DecryptionException, InvalidPacketException {
+    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength, QuicConnection heimdallQuicConnection, Boolean isServer) throws DecryptionException, InvalidPacketException {
         log.debug("Parsing " + this.getClass().getSimpleName());
         if (buffer.remaining() < 1 + sourceConnectionIdLength) {
             throw new InvalidPacketException();
@@ -80,7 +81,7 @@ public class ShortHeaderPacket extends QuicPacket {
         log.debug("Destination connection id", packetConnectionId);
 
         try {
-            parsePacketNumberAndPayload(buffer, flags, buffer.limit() - buffer.position(), aead, largestPacketNumber, log);
+            parsePacketNumberAndPayload(buffer, flags, buffer.limit() - buffer.position(), aead, largestPacketNumber, log, heimdallQuicConnection, isServer);
             aead.confirmKeyUpdateIfInProgress();
         }
         catch (DecryptionException cantDecrypt) {

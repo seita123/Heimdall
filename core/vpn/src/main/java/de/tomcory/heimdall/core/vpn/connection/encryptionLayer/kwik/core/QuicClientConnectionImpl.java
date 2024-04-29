@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.X509TrustManager;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.CertificateWithPrivateKey;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.NewSessionTicket;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.TlsConstants;
@@ -157,8 +158,8 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
                                      String proxyHost, Path secretsFile, Integer initialRtt, Integer cidLength,
                                      List<TlsConstants.CipherSuite> cipherSuites,
                                      X509Certificate clientCertificate, PrivateKey clientCertificateKey,
-                                     DatagramSocketFactory socketFactory, TransportLayerConnection transportLayerConnection) throws UnknownHostException, SocketException {
-        super(originalVersion, Role.Client, secretsFile, log);
+                                     DatagramSocketFactory socketFactory, TransportLayerConnection transportLayerConnection, QuicConnection heimdallQuicConnection) throws UnknownHostException, SocketException {
+        super(originalVersion, Role.Client, secretsFile, log, heimdallQuicConnection, false);
         this.applicationProtocol = applicationProtocol;
         this.connectTimeout = connectTimeout;
         log.info("Creating connection with " + host + ":" + port + " with " + originalVersion);
@@ -968,7 +969,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
     }
 
     @Override
-    protected SenderImpl getSender() {
+    public SenderImpl getSender() {
         return sender;
     }
 
@@ -1165,6 +1166,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
         private long connectTimeoutInMillis = DEFAULT_CONNECT_TIMEOUT_IN_MILLIS;
         private String applicationProtocol = "";
         private TransportLayerConnection transportLayerConnection;
+        private QuicConnection heimdallQuicConnection;
 
         @Override
         public QuicClientConnectionImpl build() throws SocketException, UnknownHostException {
@@ -1187,7 +1189,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
             QuicClientConnectionImpl quicConnection =
                     new QuicClientConnectionImpl(host, port, applicationProtocol, connectTimeoutInMillis, customizedConnectionProperties, sessionTicket, Version.of(quicVersion),
                             Version.of(preferredVersion), log, proxyHost, secretsFile, initialRtt, connectionIdLength,
-                            cipherSuites, clientCertificate, clientCertificateKey, socketFactory, transportLayerConnection);
+                            cipherSuites, clientCertificate, clientCertificateKey, socketFactory, transportLayerConnection, heimdallQuicConnection);
 
             if (omitCertificateCheck) {
                 quicConnection.trustAnyServerCertificate();
@@ -1349,6 +1351,11 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
 
         public Builder transportLayerConnection(TransportLayerConnection transportLayerConnection){
             this.transportLayerConnection = transportLayerConnection;
+            return this;
+        }
+
+        public Builder heimdallQuicConnection(QuicConnection heimdallQuicConnection){
+            this.heimdallQuicConnection = heimdallQuicConnection;
             return this;
         }
     }

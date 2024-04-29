@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.crypto.Aead;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.QuicFrame;
@@ -193,7 +194,7 @@ public abstract class LongHeaderPacket extends QuicPacket {
     }
 
     @Override
-    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength) throws DecryptionException, InvalidPacketException {
+    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength, QuicConnection heimdallQuicConnection, Boolean isServer) throws DecryptionException, InvalidPacketException {
         log.debug("Parsing " + this.getClass().getSimpleName());
         if (buffer.position() != 0) {
             // parsePacketNumberAndPayload method requires packet to start at 0.
@@ -250,7 +251,7 @@ public abstract class LongHeaderPacket extends QuicPacket {
         log.debug("Length (PN + payload): " + length);
 
         try {
-            parsePacketNumberAndPayload(buffer, flags, length, aead, largestPacketNumber, log);
+            parsePacketNumberAndPayload(buffer, flags, length, aead, largestPacketNumber, log, heimdallQuicConnection, isServer);
         }
         finally {
             packetSize = buffer.position() - 0;

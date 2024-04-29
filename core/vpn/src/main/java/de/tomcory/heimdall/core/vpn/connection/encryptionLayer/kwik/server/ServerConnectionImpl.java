@@ -35,6 +35,7 @@ import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.NewSessionTicket;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.TlsConstants;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.TlsProtocolException;
@@ -92,6 +93,9 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
     private int allowedClientConnectionIds = 3;
     private long initialMaxData;
 
+    private QuicConnection heimdallQuicConnection;
+    private Boolean isServer;
+
 
     /**
      * Creates a server connection implementation.
@@ -112,13 +116,15 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
     protected ServerConnectionImpl(Version originalVersion, TransportLayerConnection transportLayerConnection, InetSocketAddress initialClientAddress,
                                    byte[] peerCid, byte[] originalDcid, int connectionIdLength, TlsServerEngineFactory tlsServerEngineFactory,
                                    boolean retryRequired, ApplicationProtocolRegistry applicationProtocolRegistry,
-                                   Integer initialRtt, ServerConnectionRegistry connectionRegistry, Consumer<ServerConnectionImpl> closeCallback, Logger log) {
-        super(originalVersion, Role.Server, null, new LogProxy(log, originalDcid));
+                                   Integer initialRtt, ServerConnectionRegistry connectionRegistry, Consumer<ServerConnectionImpl> closeCallback, Logger log, QuicConnection heimdallQuicConnection) {
+        super(originalVersion, Role.Server, null, new LogProxy(log, originalDcid), heimdallQuicConnection, true);
         this.originalVersion = originalVersion;
         this.initialClientAddress = initialClientAddress;
         this.retryRequired = retryRequired;
         this.applicationProtocolRegistry = applicationProtocolRegistry;
         this.closeCallback = closeCallback;
+        this.heimdallQuicConnection = heimdallQuicConnection;
+        this.isServer = true;
 
         tlsEngine = tlsServerEngineFactory.createServerEngine(new TlsMessageSender(), this);
         tlsEngine.addSupportedCiphers(List.of(
@@ -256,7 +262,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
         // "In this document, the TLS handshake is considered complete when the TLS stack has reported that the handshake
         //  is complete. This happens when the TLS stack has both sent a Finished message and verified the peer's Finished message."
         sender.discard(PnSpace.Handshake, "tls handshake confirmed");
-        connectionSecrets.discardKeys(EncryptionLevel.Handshake);
+//        connectionSecrets.discardKeys(EncryptionLevel.Handshake);  Todo: wieder unkommentieren, falls anders gelöst
         // https://tools.ietf.org/html/draft-ietf-quic-tls-32#section-4.9.2
         // "The server MUST send a HANDSHAKE_DONE frame as soon as it completes the handshake."
         sendHandshakeDone(new HandshakeDoneFrame(quicVersion.getVersion()));
@@ -383,9 +389,9 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
     }
 
     @Override
-    protected QuicPacket parsePacket(ByteBuffer data) throws MissingKeysException, DecryptionException, InvalidPacketException {
+    protected QuicPacket parsePacket(ByteBuffer data, QuicConnection heimdallQuicConnection, Boolean isServer) throws MissingKeysException, DecryptionException, InvalidPacketException {
         try {
-            return super.parsePacket(data);
+            return super.parsePacket(data, heimdallQuicConnection, isServer);
         }
         catch (DecryptionException decryptionException) {
             Version connectionVersion = quicVersion.getVersion();
@@ -396,7 +402,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
                 try {
                     data.rewind();
                     connectionSecrets.computeInitialKeys(connectionIdManager.getOriginalDestinationConnectionId());
-                    return super.parsePacket(data);
+                    return super.parsePacket(data, heimdallQuicConnection, isServer);
                 }
                 finally {
                     connectionSecrets.computeInitialKeys(connectionIdManager.getInitialConnectionId());

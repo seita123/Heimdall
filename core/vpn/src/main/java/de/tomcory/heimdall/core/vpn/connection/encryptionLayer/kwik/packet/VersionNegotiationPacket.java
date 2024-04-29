@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.crypto.Aead;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.Logger;
@@ -69,7 +70,7 @@ public class VersionNegotiationPacket extends QuicPacket {
     }
 
     @Override
-    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength) throws DecryptionException, InvalidPacketException {
+    public void parse(ByteBuffer buffer, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength, QuicConnection heimdallQuicConnection, Boolean isServer) throws DecryptionException, InvalidPacketException {
         log.debug("Parsing VersionNegotationPacket");
         int packetLength = buffer.limit() - buffer.position();
         if (packetLength < MIN_PACKET_LENGTH) {

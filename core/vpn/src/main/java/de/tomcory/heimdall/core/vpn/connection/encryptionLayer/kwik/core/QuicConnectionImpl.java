@@ -120,11 +120,16 @@ public abstract class QuicConnectionImpl implements QuicConnection, PacketProces
     private RateLimiter closeFramesSendRateLimiter;
     private final ScheduledExecutorService scheduler;
 
+    private de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection heimdallQuicConnection;
+    private Boolean isServer;
 
-    protected QuicConnectionImpl(Version originalVersion, Role role, Path secretsFile, Logger log) {
+
+    protected QuicConnectionImpl(Version originalVersion, Role role, Path secretsFile, Logger log, de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection heimdallQuicConnection, Boolean isServer) {
         this.quicVersion = new VersionHolder(originalVersion);
         this.role = role;
         this.log = log;
+        this.heimdallQuicConnection = heimdallQuicConnection;
+        this.isServer = isServer;
 
         connectionSecrets = new ConnectionSecrets(quicVersion, role, secretsFile, log);
 
@@ -184,7 +189,7 @@ public abstract class QuicConnectionImpl implements QuicConnection, PacketProces
             try {
                 QuicPacket packet;
                 if (parsedPacket == null) {
-                    packet = parsePacket(data);
+                    packet = parsePacket(data, heimdallQuicConnection, isServer);
                     log.received(timeReceived, datagram, packet);
                     log.debug("Parsed packet with size " + data.position() + "; " + data.remaining() + " bytes left.");
                 }
@@ -268,7 +273,7 @@ public abstract class QuicConnectionImpl implements QuicConnection, PacketProces
         return false;
     }
 
-    protected QuicPacket parsePacket(ByteBuffer data) throws MissingKeysException, DecryptionException, InvalidPacketException {
+    protected QuicPacket parsePacket(ByteBuffer data, de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection heimdallQuicConnection, Boolean isServer) throws MissingKeysException, DecryptionException, InvalidPacketException {
         data.mark();
         if (data.remaining() < 2) {
             throw new InvalidPacketException("packet too short to be valid QUIC packet");
@@ -334,11 +339,11 @@ public abstract class QuicConnectionImpl implements QuicConnection, PacketProces
             }
 
             long largestPN = packet.getPnSpace() != null? largestPacketNumber[packet.getPnSpace().ordinal()]: 0;
-            packet.parse(data, aead, largestPN, log, getSourceConnectionIdLength());
+            packet.parse(data, aead, largestPN, log, getSourceConnectionIdLength(), heimdallQuicConnection, isServer);
         }
         else {
             // Packet has no encryption level, i.e. a VersionNegotiationPacket
-            packet.parse(data, null, 0, log, 0);
+            packet.parse(data, null, 0, log, 0, heimdallQuicConnection, isServer);
         }
 
         // Only retry packet and version negotiation packet won't have a packet number.

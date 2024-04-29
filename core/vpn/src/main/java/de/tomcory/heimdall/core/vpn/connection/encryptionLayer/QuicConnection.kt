@@ -4,7 +4,10 @@ import de.tomcory.heimdall.core.util.ByteUtils
 import de.tomcory.heimdall.core.vpn.components.ComponentManager
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.env.PlatformMapping
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicClientConnection
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicStream
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.Version
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.QuicFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.Logger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.SysOutLogger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.ApplicationProtocolConnection
@@ -14,13 +17,16 @@ import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.Serve
 import de.tomcory.heimdall.core.vpn.connection.transportLayer.TransportLayerConnection
 import org.pcap4j.packet.Packet
 import timber.log.Timber
+import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.io.InputStreamReader
 import java.net.InetAddress
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.security.cert.X509Certificate
 import java.util.Base64
+
 
 class QuicConnection(
     id: Int,
@@ -72,7 +78,6 @@ class QuicConnection(
 
     private var serverConnector: ServerConnector? = null
 
-
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////
@@ -120,10 +125,22 @@ class QuicConnection(
         transportLayer.wrapOutbound(payload)
     }
 
+    fun wrapOutbound(framesToSend: List<QuicFrame>){
+        for (frame: QuicFrame in framesToSend){
+            println("Qutbound frames: " + frame.toString())
+        }
+    }
+
     override fun wrapInbound(payload: ByteArray) {
         //TODO: implement
         println("wrapInbound $id")
         transportLayer.wrapInbound(payload)
+    }
+
+    fun wrapInbound(framesToSend: List<QuicFrame>){
+        for (frame: QuicFrame in framesToSend){
+            println("Inbound frames: " + frame.toString())
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -131,7 +148,6 @@ class QuicConnection(
     //////////////////////////////////////////////////////////////////////
 
 
-    @OptIn(ExperimentalUnsignedTypes::class)
     private fun handleOutboundRecord(record: ByteArray, recordType: RecordType){
         // update the doMitm flag if the connection is marked for passthroughs
         doMitm = doMitm && !(transportLayer.appId?.let { componentManager.tlsPassthroughCache.get(it, hostname) } ?: false) //Todo: anpassen auf QUIC!
@@ -192,6 +208,7 @@ class QuicConnection(
         connectionBuilder.noServerCertificateCheck()
         connectionBuilder.applicationProtocol("h3")
         connectionBuilder.transportLayerConnection(transportLayer)
+        connectionBuilder.heimdallQuicConnection(this)
 
         // build the server facing QUIC connection
         serverFacingQuicConnection = connectionBuilder.build()
@@ -260,7 +277,8 @@ class QuicConnection(
                 fakeKey,
                 supportedVersions,
                 requireRetry,
-                log
+                log,
+                this
             )
 
             serverConnector!!.registerApplicationProtocol(
@@ -342,11 +360,6 @@ class QuicConnection(
         }
     }
 
-
-
-
-
-
 }
 
 
@@ -397,4 +410,31 @@ private enum class ConnectionState {
     CLOSED
 }
 
-class BasicConnection(): ApplicationProtocolConnection
+class BasicConnection(): ApplicationProtocolConnection{
+    override fun acceptPeerInitiatedStream(quicStream: QuicStream) {
+        Thread { handleIncomingRequest(quicStream) }.start()
+//        handleIncomingRequest(quicStream)
+    }
+
+    private fun handleIncomingRequest(quicStream: QuicStream) {
+
+        val inputStream = BufferedReader(InputStreamReader(quicStream.getInputStream(), "UTF-8"))
+//        val streamData = inputStream.readText()
+//        println("Stream Data as Text?: " + streamData)
+        var i = 0
+        try {
+            while (i<5) {
+                val line = inputStream.readLine()
+                println("Received $line")
+                i += 1
+            }
+
+            // zweite Variante Versuch
+            val bytesRead = quicStream.inputStream.readBytes()
+            println("Read echo request with " + bytesRead.size + " bytes of data. The Bytes read: " + bytesRead)
+
+        } catch (e: java.lang.Exception) {
+            // Done
+        }
+    }
+}

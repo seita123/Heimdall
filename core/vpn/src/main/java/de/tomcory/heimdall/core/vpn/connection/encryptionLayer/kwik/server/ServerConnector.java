@@ -34,6 +34,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.handshake.TlsServerEngineFactory;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.util.ByteUtils;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.EncryptionLevel;
@@ -68,12 +69,16 @@ public class ServerConnector {
     private ServerConnectionRegistryImpl connectionRegistry;
     private TransportLayerConnection transportLayerConnection;
 
+    private ServerConnectionImpl serverConnection;
+    private QuicConnection heimdallQuicConnection;
 
-    public ServerConnector(TransportLayerConnection transportLayerConnection, List<X509Certificate> certificateFile, PrivateKey certificateKeyFile, List<Version> supportedVersions, boolean requireRetry, Logger log) throws Exception {
+
+    public ServerConnector(TransportLayerConnection transportLayerConnection, List<X509Certificate> certificateFile, PrivateKey certificateKeyFile, List<Version> supportedVersions, boolean requireRetry, Logger log, QuicConnection heimdallQuicConnection) throws Exception {
         this.supportedVersions = supportedVersions;
         this.requireRetry = requireRetry;
         this.log = Objects.requireNonNull(log);
         this.transportLayerConnection = transportLayerConnection;
+        this.heimdallQuicConnection = heimdallQuicConnection;
 
 //        String key = new String(InputStreamCompat.readAllBytes(certificateKeyFile), Charset.defaultCharset());
 //        key = key.trim();
@@ -81,7 +86,7 @@ public class ServerConnector {
         tlsEngineFactory = new TlsServerEngineFactory(certificateFile, certificateKeyFile);
         applicationProtocolRegistry = new ApplicationProtocolRegistry();
         connectionRegistry = new ServerConnectionRegistryImpl(log);
-        serverConnectionFactory = new ServerConnectionFactory(CONNECTION_ID_LENGTH, transportLayerConnection, tlsEngineFactory,
+        serverConnectionFactory = new ServerConnectionFactory(CONNECTION_ID_LENGTH, this.transportLayerConnection, tlsEngineFactory,
                 this.requireRetry, applicationProtocolRegistry, initalRtt, connectionRegistry, connectionRegistry::removeConnection, log);
 
         supportedVersionIds = supportedVersions.stream().map(version -> version.getId()).collect(Collectors.toList());
@@ -231,7 +236,9 @@ public class ServerConnector {
     private ServerConnectionProxy createNewConnection(int versionValue, InetSocketAddress clientAddress, byte[] scid, byte[] originalDcid) {
         Version version = Version.parse(versionValue);
         ServerConnectionProxy connectionCandidate = new ServerConnectionCandidate(context, version, clientAddress, scid, originalDcid,
-                serverConnectionFactory, connectionRegistry, log);
+                serverConnectionFactory, connectionRegistry, log, heimdallQuicConnection);
+        ServerConnectionCandidate serverConnectionCandidate = (ServerConnectionCandidate) connectionCandidate;
+        serverConnection = serverConnectionCandidate.serverConnection;
         // Register new connection now with the original connection id, as retransmitted initial packets with the
         // same original dcid might be received (for example when the server response does not reach the client).
         // Such packets must _not_ lead to new connection candidate. Moreover, if it is an initial packet, it must be
@@ -263,6 +270,10 @@ public class ServerConnector {
             transportLayerConnection.wrapInbound(packetBytes); // Todo: check if this is really inbound
             log.sent(Instant.now(), versionNegotiationPacket);
         }
+    }
+
+    public ServerConnectionImpl getConnection(){
+        return serverConnection;
     }
 
     private class ServerConnectorContext implements Context {

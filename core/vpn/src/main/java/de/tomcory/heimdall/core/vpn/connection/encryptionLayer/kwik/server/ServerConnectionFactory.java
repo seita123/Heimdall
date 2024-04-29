@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.function.Consumer;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.handshake.TlsServerEngineFactory;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.Version;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.Logger;
@@ -70,9 +71,9 @@ public class ServerConnectionFactory {
      * @param originalDcid  the original destination id used by the client
      * @return
      */
-    public ServerConnectionImpl createNewConnection(Version version, InetSocketAddress clientAddress, byte[] scid, byte[] originalDcid) {
+    public ServerConnectionImpl createNewConnection(Version version, InetSocketAddress clientAddress, byte[] scid, byte[] originalDcid, QuicConnection heimdallQuicConnection) {
         return new ServerConnectionImpl(version, transportLayerConnection, clientAddress, scid, originalDcid, connectionIdLength,
-                tlsServerEngineFactory, requireRetry, applicationProtocolRegistry, initalRtt, connectionRegistry, closeCallback, log);
+                tlsServerEngineFactory, requireRetry, applicationProtocolRegistry, initalRtt, connectionRegistry, closeCallback, log, heimdallQuicConnection);
     }
 
     public ServerConnectionProxy createServerConnectionProxy(ServerConnectionImpl connection, InitialPacket initialPacket, Instant packetReceived, ByteBuffer datagram) {

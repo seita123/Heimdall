@@ -33,6 +33,7 @@ import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.TlsConsta
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.Logger;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.receive.Receiver;
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.send.SenderImpl;
 import de.tomcory.heimdall.core.vpn.connection.transportLayer.TransportLayerConnection;
 
 
@@ -55,6 +56,8 @@ public interface QuicClientConnection extends QuicConnection {
     boolean isConnected();
 
     Receiver getReceiver();
+
+    SenderImpl getSender();
 
     static Builder newBuilder() {
         return QuicClientConnectionImpl.newBuilder();
@@ -139,6 +142,8 @@ public interface QuicClientConnection extends QuicConnection {
         Builder socketFactory(DatagramSocketFactory socketFactory);
 
         Builder transportLayerConnection(TransportLayerConnection transportLayerConnection);
+
+        Builder heimdallQuicConnection(de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection heimdallQuicConnection);
     }
 
 }

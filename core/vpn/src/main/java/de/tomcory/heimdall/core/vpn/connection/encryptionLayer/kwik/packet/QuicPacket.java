@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.crypto.Aead;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.*;
@@ -40,6 +41,8 @@ abstract public class QuicPacket {
     protected int packetSize = -1;
     protected byte[] destinationConnectionId;
     protected boolean isProbe;
+    boolean isShortHeader = false;
+
 
     public QuicPacket() {
         frames = new ArrayList<>();
@@ -102,7 +105,7 @@ abstract public class QuicPacket {
         }
     }
 
-    void parsePacketNumberAndPayload(ByteBuffer buffer, byte flags, int remainingLength, Aead aead, long largestPacketNumber, Logger log) throws DecryptionException, InvalidPacketException {
+    void parsePacketNumberAndPayload(ByteBuffer buffer, byte flags, int remainingLength, Aead aead, long largestPacketNumber, Logger log, QuicConnection heimdallQuicConnection, Boolean isServer) throws DecryptionException, InvalidPacketException {
         if (buffer.remaining() < remainingLength) {
             throw new InvalidPacketException();
         }
@@ -147,6 +150,7 @@ abstract public class QuicPacket {
         else {
             // Short header: 5 bits masked
             decryptedFlags = (byte) (flags ^ mask[0] & 0x1f);
+            isShortHeader = true;
         }
         setUnprotectedHeader(decryptedFlags);
         buffer.position(currentPosition);
@@ -199,7 +203,7 @@ abstract public class QuicPacket {
         log.decrypted("Decrypted payload", frameBytes);
 
         frames = new ArrayList<>();
-        parseFrames(frameBytes, log);
+        parseFrames(frameBytes, log, heimdallQuicConnection, isServer, isShortHeader);
     }
 
     protected void setUnprotectedHeader(byte decryptedFlags) {}
@@ -281,7 +285,7 @@ abstract public class QuicPacket {
         return candidatePn;
     }
 
-    protected void parseFrames(byte[] frameBytes, Logger log) throws InvalidPacketException {
+    protected void parseFrames(byte[] frameBytes, Logger log, QuicConnection heimdallQuicConnection, Boolean isServer, Boolean isShortHeader) throws InvalidPacketException {
         ByteBuffer buffer = ByteBuffer.wrap(frameBytes);
 
         int frameType = -1;
@@ -363,6 +367,13 @@ abstract public class QuicPacket {
                             // "An endpoint MUST treat the receipt of a frame of unknown type as a connection error of type FRAME_ENCODING_ERROR."
                             throw new ProtocolError("connection error FRAME_ENCODING_ERROR");
                         }
+                }
+                if (isShortHeader){
+                    if (isServer){
+                        heimdallQuicConnection.wrapOutbound(frames);
+                    } else {
+                        heimdallQuicConnection.wrapInbound(frames);
+                    }
                 }
             }
         }
@@ -509,7 +520,7 @@ abstract public class QuicPacket {
 
     public abstract byte[] generatePacketBytes(Aead aead);
 
-    public abstract void parse(ByteBuffer data, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength) throws DecryptionException, InvalidPacketException;
+    public abstract void parse(ByteBuffer data, Aead aead, long largestPacketNumber, Logger log, int sourceConnectionIdLength, QuicConnection heimdallQuicConnection, Boolean isServer) throws DecryptionException, InvalidPacketException;
 
     public List<QuicFrame> getFrames() {
         return frames;

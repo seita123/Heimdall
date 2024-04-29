@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.QuicConnection;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.util.ByteUtils;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.*;
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.crypto.Aead;
@@ -51,9 +52,12 @@ public class ServerConnectionCandidate implements ServerConnectionProxy {
     private final ExecutorService executor;
     private final ScheduledExecutorService scheduledExecutor;
 
+    ServerConnectionImpl serverConnection;
+    private QuicConnection heimdallQuicConnection;
+
 
     public ServerConnectionCandidate(Context context, Version version, InetSocketAddress clientAddress, byte[] scid, byte[] dcid,
-                                     ServerConnectionFactory serverConnectionFactory, ServerConnectionRegistry connectionRegistry, Logger log) {
+                                     ServerConnectionFactory serverConnectionFactory, ServerConnectionRegistry connectionRegistry, Logger log, QuicConnection heimdallQuicConnection) {
         this.executor = context.getSharedServerExecutor();
         this.scheduledExecutor = context.getSharedScheduledExecutor();
         this.quicVersion = version;
@@ -62,6 +66,7 @@ public class ServerConnectionCandidate implements ServerConnectionProxy {
         this.serverConnectionFactory = serverConnectionFactory;
         this.connectionRegistry = connectionRegistry;
         this.log = log;
+        this.heimdallQuicConnection = heimdallQuicConnection;
     }
 
     @Override
@@ -121,9 +126,10 @@ public class ServerConnectionCandidate implements ServerConnectionProxy {
     private void createAndRegisterServerConnection(InitialPacket initialPacket, Instant timeReceived, ByteBuffer data) {
         Version quicVersion = initialPacket.getVersion();
         byte[] originalDcid = initialPacket.getDestinationConnectionId();
-        ServerConnectionImpl connection = serverConnectionFactory.createNewConnection(quicVersion, clientAddress, initialPacket.getSourceConnectionId(), originalDcid);
+        ServerConnectionImpl connection = serverConnectionFactory.createNewConnection(quicVersion, clientAddress, initialPacket.getSourceConnectionId(), originalDcid, heimdallQuicConnection);
         log.info("Creating new connection with version " + quicVersion + " for odcid " + ByteUtils.bytesToHex(originalDcid)
                 + " with " + clientAddress.getAddress().getHostAddress() + ": " + ByteUtils.bytesToHex(connection.getInitialConnectionId()));
+        serverConnection = connection;
 
         // Pass the initial packet for processing, so it is processed on the server thread (enabling thread confinement concurrency strategy)
         registeredConnection = serverConnectionFactory.createServerConnectionProxy(connection, initialPacket, timeReceived, data);
@@ -172,7 +178,7 @@ public class ServerConnectionCandidate implements ServerConnectionProxy {
             connectionSecrets.computeInitialKeys(originalDcid);
             try {
                 Aead aead = connectionSecrets.getPeerAead(packet.getEncryptionLevel());
-                packet.parse(data, aead, 0, new NullLogger(), 0);
+                packet.parse(data, aead, 0, new NullLogger(), 0, null, null);
                 return packet;
             } catch (MissingKeysException e) {
                 // Impossible, as initial keys have just been computed.
