@@ -178,7 +178,7 @@ public class ServerConnectionCandidate implements ServerConnectionProxy {
             connectionSecrets.computeInitialKeys(originalDcid);
             try {
                 Aead aead = connectionSecrets.getPeerAead(packet.getEncryptionLevel());
-                packet.parse(data, aead, 0, new NullLogger(), 0, null, null);
+                packet.parse(data, aead, 0, new NullLogger(), 0, heimdallQuicConnection, true);
                 return packet;
             } catch (MissingKeysException e) {
                 // Impossible, as initial keys have just been computed.

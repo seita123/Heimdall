@@ -375,6 +375,11 @@ abstract public class QuicPacket {
                         heimdallQuicConnection.wrapInbound(frames);
                     }
                 }
+//                if (isServer){
+//                    heimdallQuicConnection.wrapOutbound(frames);
+//                } else {
+//                    heimdallQuicConnection.wrapInbound(frames);
+//                }
             }
         }
         catch (InvalidIntegerEncodingException e) {

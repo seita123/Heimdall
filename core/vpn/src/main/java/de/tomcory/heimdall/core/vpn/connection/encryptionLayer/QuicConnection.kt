@@ -1,13 +1,15 @@
 package de.tomcory.heimdall.core.vpn.connection.encryptionLayer
 
+import android.os.Environment
 import de.tomcory.heimdall.core.util.ByteUtils
 import de.tomcory.heimdall.core.vpn.components.ComponentManager
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.env.PlatformMapping
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicClientConnection
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicStream
-import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.QuicClientConnectionImpl
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.EncryptionLevel
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.Version
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.QuicFrame
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.StreamFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.Logger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.SysOutLogger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.ApplicationProtocolConnection
@@ -19,13 +21,19 @@ import org.pcap4j.packet.Packet
 import timber.log.Timber
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
+import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.InputStreamReader
+import java.io.OutputStream
 import java.net.InetAddress
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.security.cert.X509Certificate
 import java.util.Base64
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
+import kotlin.time.TimeSource.Monotonic
+import kotlin.time.TimeSource.Monotonic.markNow
 
 
 class QuicConnection(
@@ -78,6 +86,12 @@ class QuicConnection(
 
     private var serverConnector: ServerConnector? = null
 
+    private var isFirstPacket: Boolean = true
+
+    private var mark: Monotonic.ValueTimeMark? = null
+
+    private var timestamps: MutableList<Duration>? = mutableListOf()
+
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////
@@ -90,13 +104,30 @@ class QuicConnection(
 
     override fun unwrapOutbound(packet: Packet) { // This one is being used
         //TODO: implement
+        if (isFirstPacket){
+            mark = markNow()
+            isFirstPacket = false
+        }
         val recordType = parseRecordType(packet.rawData)
         println("unwrapOutbound $id + RecordType $recordType + ConnectionState: $connectionState")
         println(ByteUtils.bytesToHex(packet.rawData))
 
         // The client starts sending application data, therefore the handshake has been completed
-        if (recordType == RecordType.APP){
+        if (recordType == RecordType.APP && connectionState != ConnectionState.CLIENT_ESTABLISHED){
             connectionState = ConnectionState.CLIENT_ESTABLISHED
+            val elapsed_step3 = mark?.elapsedNow()
+            timestamps?.add(elapsed_step3!!)
+            println("quic$id Elapsed time - Step 2 - Kwik server established: $elapsed_step3")
+
+            val fileName = "time_measurement_data.csv"
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val filePath = downloadsDir.absolutePath + "/" + fileName
+            FileOutputStream(filePath).use { fos ->
+                timestamps?.forEach {
+                    fos.write(it.toInt(DurationUnit.MILLISECONDS))
+                }
+            }
+
         }
         var id = id // just to see in Debug without watch
         when(connectionState){
@@ -127,7 +158,10 @@ class QuicConnection(
 
     fun wrapOutbound(framesToSend: List<QuicFrame>){
         for (frame: QuicFrame in framesToSend){
-            println("Qutbound frames: " + frame.toString())
+            println("quic$id Qutbound frames: " + frame.toString())
+            if (frame is StreamFrame){
+                serverFacingQuicConnection?.sender?.send(frame, EncryptionLevel.App, null)
+            }
         }
     }
 
@@ -139,7 +173,10 @@ class QuicConnection(
 
     fun wrapInbound(framesToSend: List<QuicFrame>){
         for (frame: QuicFrame in framesToSend){
-            println("Inbound frames: " + frame.toString())
+            println("quic$id Inbound frames: " + frame.toString())
+            if (frame is StreamFrame){
+                serverConnector?.connection?.send(frame, EncryptionLevel.App, null, true)
+            }
         }
     }
 
@@ -186,6 +223,7 @@ class QuicConnection(
 
     private fun createQUICClient(record: ByteArray){
         println("Creating QUIC Client")
+
         // Enables the use of KWIK for Android
         PlatformMapping.usePlatformMapping(PlatformMapping.Platform.Android)
 
@@ -204,11 +242,18 @@ class QuicConnection(
 //        log.logDebug(true)
 //        connectionBuilder.logger(log)
 
+        val log = SysOutLogger()
+        log.logPackets(true)
+        log.logInfo(true)
+        log.logDebug(true)
+        log.logWarning(true)
+
         connectionBuilder.uri(uri)
         connectionBuilder.noServerCertificateCheck()
         connectionBuilder.applicationProtocol("h3")
         connectionBuilder.transportLayerConnection(transportLayer)
         connectionBuilder.heimdallQuicConnection(this)
+        connectionBuilder.logger(log)
 
         // build the server facing QUIC connection
         serverFacingQuicConnection = connectionBuilder.build()
@@ -219,6 +264,10 @@ class QuicConnection(
 
             Timber.d("quic$id Server facing QUIC connection established.")
             connectionState = ConnectionState.SERVER_ESTABLISHED
+
+            val elapsed_step2 = mark?.elapsedNow()
+            timestamps?.add(elapsed_step2!!)
+            println("quic$id Elapsed time - Step 1 - Kwik client connection established: $elapsed_step2")
 
             serverCertificate = serverFacingQuicConnection?.serverCertificateChain?.get(0)
 
@@ -258,11 +307,11 @@ class QuicConnection(
             supportedVersions.add(Version.QUIC_version_1)
             val log: Logger = SysOutLogger()
             log.timeFormat(Logger.TimeFormat.Long)
-            log.logWarning(true)
-            log.logInfo(true)
+//            log.logWarning(true)
+//            log.logInfo(true)
 //            log.logRaw(true)
 //            log.logDecrypted(true)
-            log.logDebug(true)
+//            log.logDebug(true)
 //            log.logPackets(true)
 //            log.logSecrets(true)
 //            log.logCongestionControl(true)
@@ -360,6 +409,16 @@ class QuicConnection(
         }
     }
 
+    fun OutputStream.writeCsv(times: MutableList<Duration>) {
+        val writer = bufferedWriter()
+//        writer.write(""""Year", "Score", "Title"""")
+//        writer.newLine()
+        times.forEach {
+            writer.write("${it}\"")
+            writer.newLine()
+        }
+        writer.flush()
+    }
 }
 
 
