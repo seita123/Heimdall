@@ -192,6 +192,10 @@ public class StreamFrame extends QuicFrame implements StreamElement, Comparable<
         return isFinal;
     }
 
+    public StreamType getStreamType() {
+        return streamType;
+    }
+
     static public int maxOverhead() {
         return 1  // frame type
         + 4 // stream id

@@ -18,7 +18,7 @@
  */
 package de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame;
 
-enum StreamType {
+public enum StreamType {
 
     ClientInitiatedBidirectional(0, "CIB"),
     ServerInitiatedBidirectional(1, "SIB"),

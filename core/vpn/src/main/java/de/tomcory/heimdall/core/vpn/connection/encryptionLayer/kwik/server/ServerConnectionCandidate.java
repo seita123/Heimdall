@@ -130,6 +130,7 @@ public class ServerConnectionCandidate implements ServerConnectionProxy {
         log.info("Creating new connection with version " + quicVersion + " for odcid " + ByteUtils.bytesToHex(originalDcid)
                 + " with " + clientAddress.getAddress().getHostAddress() + ": " + ByteUtils.bytesToHex(connection.getInitialConnectionId()));
         serverConnection = connection;
+        heimdallQuicConnection.setServerConnection(serverConnection);
 
         // Pass the initial packet for processing, so it is processed on the server thread (enabling thread confinement concurrency strategy)
         registeredConnection = serverConnectionFactory.createServerConnectionProxy(connection, initialPacket, timeReceived, data);
@@ -147,6 +148,11 @@ public class ServerConnectionCandidate implements ServerConnectionProxy {
 
     @Override
     public void terminate() {
+    }
+
+    @Override
+    public ServerConnectionImpl getServerConnection() {
+        return serverConnection;
     }
 
     InitialPacket parseInitialPacket(int datagramNumber, Instant timeReceived, ByteBuffer data) throws InvalidPacketException, DecryptionException {

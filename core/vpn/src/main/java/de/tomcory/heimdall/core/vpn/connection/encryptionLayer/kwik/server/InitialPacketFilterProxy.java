@@ -78,4 +78,9 @@ public class InitialPacketFilterProxy implements ServerConnectionProxy {
     public void terminate() {
         connectionCandidate.terminate();
     }
+
+    @Override
+    public ServerConnectionImpl getServerConnection() {
+        return connectionCandidate.getServerConnection();
+    }
 }

@@ -74,6 +74,11 @@ public class ServerConnectionThread implements ServerConnectionProxy {
         connectionReceiverThread.interrupt();
     }
 
+    @Override
+    public ServerConnectionImpl getServerConnection() {
+        return serverConnection;
+    }
+
     private void process() {
         try {
             if (firstInitialPacket != null) {

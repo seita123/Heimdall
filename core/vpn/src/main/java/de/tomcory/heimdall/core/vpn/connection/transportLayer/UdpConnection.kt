@@ -128,7 +128,8 @@ class UdpConnection internal constructor(
             outBuffer.flip()
             while (outBuffer.hasRemaining()) {
                 try {
-                    selectableChannel.write(outBuffer)
+                    val bytes = selectableChannel.write(outBuffer)
+                    Timber.d("udp$id writing outbound bytes: $bytes")
                 } catch (e: IOException) {
                     Timber.e(e, "udp$id Error writing to DatagramChannel, closing connection")
                     closeHard()
@@ -147,6 +148,7 @@ class UdpConnection internal constructor(
             return
         }
         val forwardPacket = ipPacketBuilder.buildPacket(buildPayload(payload))
+        Timber.d("udp$id writing inbound bytes: ${forwardPacket.rawData.size}")
         deviceWriter.sendMessage(deviceWriter.obtainMessage(DeviceWriteThread.WRITE_UDP, forwardPacket))
     }
 
@@ -154,6 +156,7 @@ class UdpConnection internal constructor(
         if(state == TransportLayerState.ABORTED) {
             return
         }
+        Timber.d("udp$id receiving outbound bytes: ${outgoingPacket.rawData.size}")
         passOutboundToEncryptionLayer(outgoingPacket.payload)
     }
 
@@ -176,6 +179,7 @@ class UdpConnection internal constructor(
                         val rawData = Arrays.copyOf(inBuffer.array(), bytesRead)
 
                         // pass the payload to the application layer for further processing
+                        Timber.d("udp$id receiving inbound bytes: ${rawData.size}")
                         passInboundToEncryptionLayer(rawData)
                     }
                 } catch (e: IOException) {

@@ -60,4 +60,9 @@ public class ClientAddressFilter implements ServerConnectionProxy {
     public void terminate() {
         connectionCandidate.terminate();
     }
+
+    @Override
+    public ServerConnectionImpl getServerConnection() {
+        return null;
+    }
 }

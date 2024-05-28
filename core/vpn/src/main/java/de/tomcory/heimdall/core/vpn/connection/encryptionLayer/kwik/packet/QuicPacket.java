@@ -368,18 +368,18 @@ abstract public class QuicPacket {
                             throw new ProtocolError("connection error FRAME_ENCODING_ERROR");
                         }
                 }
-                if (isShortHeader){
-                    if (isServer){
-                        heimdallQuicConnection.wrapOutbound(frames);
-                    } else {
-                        heimdallQuicConnection.wrapInbound(frames);
-                    }
-                }
-//                if (isServer){
-//                    heimdallQuicConnection.wrapOutbound(frames);
-//                } else {
-//                    heimdallQuicConnection.wrapInbound(frames);
+//                if (isShortHeader){
+//                    if (isServer){
+//                        heimdallQuicConnection.wrapOutbound(frames);
+//                    } else {
+//                        heimdallQuicConnection.wrapInbound(frames);
+//                    }
 //                }
+                if (isServer){
+                    heimdallQuicConnection.wrapOutbound(frames, isShortHeader);
+                } else {
+                    heimdallQuicConnection.wrapInbound(frames, isShortHeader);
+                }
             }
         }
         catch (InvalidIntegerEncodingException e) {

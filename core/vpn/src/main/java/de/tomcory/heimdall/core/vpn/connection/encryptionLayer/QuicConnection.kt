@@ -1,15 +1,19 @@
 package de.tomcory.heimdall.core.vpn.connection.encryptionLayer
 
 import android.os.Environment
-import de.tomcory.heimdall.core.util.ByteUtils
 import de.tomcory.heimdall.core.vpn.components.ComponentManager
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.env.PlatformMapping
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicClientConnection
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicStream
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.EncryptionLevel
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.Version
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.AckFrame
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.ConnectionCloseFrame
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.CryptoFrame
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.HandshakeDoneFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.QuicFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.StreamFrame
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.StreamType
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.Logger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.SysOutLogger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.ApplicationProtocolConnection
@@ -59,38 +63,26 @@ class QuicConnection(
 
     private var hostname: String = transportLayer.remoteHost ?: transportLayer.ipPacketBuilder.remoteAddress.hostAddress ?: ""
 
-    // Used to derive the initial secret, is fixed to this value for V1 QUIC
-    private var initialSaltV1 = byteArrayOf(0x38, 0x76, 0x2c, 0xf7.toByte(), 0xf5.toByte(), 0x59, 0x34,
-        0xb3.toByte(), 0x4d, 0x17, 0x9a.toByte(), 0xe6.toByte(), 0xa4.toByte(), 0xc8.toByte(), 0x0c,
-        0xad.toByte(), 0xcc.toByte(), 0xbb.toByte(), 0x7f, 0x0a )      // 0x38762cf7f55934b34d179ae6a4c80cadccbb7f0a
-
-    // Secrets for initial encryption
-    private var initialSecret: ByteArray? = null
-
     private var serverFacingQuicConnection: QuicClientConnection? = null
     private var clientFacingQuicConnection: ServerConnectionImpl? = null
 
     private var serverCertificate: X509Certificate? = null
 
-    private val outboundCache = mutableListOf<ByteArray>()
-    private var remainingOutboundBytes = 0
-
-    private val inboundCache = mutableListOf<ByteArray>()
-    private var remainingInboundBytes = 0
-
-    private var outboundSnippet: ByteArray? = null
-
-    private var inboundSnippet: ByteArray? = null
-
     private var originalClientHello: ByteArray? = null
 
     private var serverConnector: ServerConnector? = null
+
+    private var serverConnectionImpl: ServerConnectionImpl? = null
 
     private var isFirstPacket: Boolean = true
 
     private var mark: Monotonic.ValueTimeMark? = null
 
     private var timestamps: MutableList<Duration>? = mutableListOf()
+
+    private var isFirstConnectionCloseFrame = true
+
+    private var isFirstStreamFrameForwarded = true
 
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
@@ -110,14 +102,14 @@ class QuicConnection(
         }
         val recordType = parseRecordType(packet.rawData)
         println("unwrapOutbound $id + RecordType $recordType + ConnectionState: $connectionState")
-        println(ByteUtils.bytesToHex(packet.rawData))
 
         // The client starts sending application data, therefore the handshake has been completed
-        if (recordType == RecordType.APP && connectionState != ConnectionState.CLIENT_ESTABLISHED){
+        if (recordType == RecordType.APP && connectionState == ConnectionState.CLIENT_HANDSHAKE){
             connectionState = ConnectionState.CLIENT_ESTABLISHED
-            val elapsed_step3 = mark?.elapsedNow()
-            timestamps?.add(elapsed_step3!!)
-            println("quic$id Elapsed time - Step 2 - Kwik server established: $elapsed_step3")
+            val elapsed_step2 = mark?.elapsedNow()
+            timestamps?.add(elapsed_step2!!)
+            Timber.d("quic$id Server facing Quic connection established")
+            println("quic$id Elapsed time - Step 2 - Kwik server established: $elapsed_step2")
 
             val fileName = "time_measurement_data.csv"
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -156,11 +148,25 @@ class QuicConnection(
         transportLayer.wrapOutbound(payload)
     }
 
-    fun wrapOutbound(framesToSend: List<QuicFrame>){
+    fun wrapOutbound(framesToSend: List<QuicFrame>, isShortHeader: Boolean){ // frames the kwik server received, now being forwarded by the kwik client
         for (frame: QuicFrame in framesToSend){
-            println("quic$id Qutbound frames: " + frame.toString())
-            if (frame is StreamFrame){
-                serverFacingQuicConnection?.sender?.send(frame, EncryptionLevel.App, null)
+            println("quic$id Applayer level?: $isShortHeader, Qutbound frame: " + frame.toString())
+            if (isShortHeader) {
+                if (frame !is HandshakeDoneFrame && frame !is AckFrame) {
+                    serverFacingQuicConnection?.sender?.send(frame, EncryptionLevel.App, null)
+
+                    // mark when the first CIB stream frame from the client is received and forwarded
+                    if (frame is StreamFrame) {
+                        // cast to Streamframe and then check if its CIB
+                        val streamFrame: StreamFrame = frame
+                        if (isFirstStreamFrameForwarded && streamFrame.streamType == StreamType.ClientInitiatedBidirectional) {
+                            val elapsed_step3 = mark?.elapsedNow()
+                            timestamps?.add(elapsed_step3!!)
+                            println("quic$id Elapsed time - Step 3 - First CIB-StreamFrame forwarded to the Server: $elapsed_step3")
+                            isFirstStreamFrameForwarded = false
+                        }
+                    }
+                }
             }
         }
     }
@@ -171,13 +177,31 @@ class QuicConnection(
         transportLayer.wrapInbound(payload)
     }
 
-    fun wrapInbound(framesToSend: List<QuicFrame>){
+    fun wrapInbound(framesToSend: List<QuicFrame>, isShortHeader: Boolean){ // frames the kwik client received, now being forwarded by the kwik server
         for (frame: QuicFrame in framesToSend){
-            println("quic$id Inbound frames: " + frame.toString())
-            if (frame is StreamFrame){
-                serverConnector?.connection?.send(frame, EncryptionLevel.App, null, true)
+            println("quic$id Applayer level?: $isShortHeader, Inbound frame: " + frame.toString())
+            if (isShortHeader) {
+                if (frame !is HandshakeDoneFrame && frame !is AckFrame) {
+                    println("quic$id Inbound Stream frames: (should be forwarded) " + frame.toString())
+//                println(serverConnector?.connection.toString() + "SIU Test connector null")
+//                serverConnector?.connection?.send(frame, EncryptionLevel.App, null, true)
+                    println("quic$id " + serverConnectionImpl.toString() + " SIU Test")
+                    serverConnectionImpl?.send(frame, EncryptionLevel.App, null, true)
+                }
+
+                // mark when the first ConnectionCloseFrame is received from the server
+                if (frame is ConnectionCloseFrame && isFirstConnectionCloseFrame) {
+                    val elapsed_step4 = mark?.elapsedNow()
+                    timestamps?.add(elapsed_step4!!)
+                    println("quic$id Elapsed time - Step 4 - First ConnectionCloseFrame received from Server: $elapsed_step4")
+                    isFirstConnectionCloseFrame = false
+                }
             }
         }
+    }
+
+    fun setServerConnection(serverConnectionImpl: ServerConnectionImpl){
+        this.serverConnectionImpl = serverConnectionImpl
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -235,14 +259,7 @@ class QuicConnection(
         val address = "//" + host + ":" + transportLayer.remotePort
         val uri = URI(address)
 
-//        val log: Logger = SysOutLogger()
-//        log.timeFormat(Logger.TimeFormat.Long)
-//        log.logWarning(true)
-//        log.logInfo(true)
-//        log.logDebug(true)
-//        connectionBuilder.logger(log)
-
-        val log = SysOutLogger()
+        val log = SysOutLogger("Quic$id kwik client: ")
         log.logPackets(true)
         log.logInfo(true)
         log.logDebug(true)
@@ -265,9 +282,9 @@ class QuicConnection(
             Timber.d("quic$id Server facing QUIC connection established.")
             connectionState = ConnectionState.SERVER_ESTABLISHED
 
-            val elapsed_step2 = mark?.elapsedNow()
-            timestamps?.add(elapsed_step2!!)
-            println("quic$id Elapsed time - Step 1 - Kwik client connection established: $elapsed_step2")
+            val elapsed_step1 = mark?.elapsedNow()
+            timestamps?.add(elapsed_step1!!)
+            println("quic$id Elapsed time - Step 1 - Kwik client connection established: $elapsed_step1")
 
             serverCertificate = serverFacingQuicConnection?.serverCertificateChain?.get(0)
 
@@ -305,14 +322,14 @@ class QuicConnection(
 
             val supportedVersions: MutableList<Version> = ArrayList<Version>()
             supportedVersions.add(Version.QUIC_version_1)
-            val log: Logger = SysOutLogger()
+            val log: Logger = SysOutLogger("Quic$id kwik server")
             log.timeFormat(Logger.TimeFormat.Long)
-//            log.logWarning(true)
-//            log.logInfo(true)
+            log.logWarning(true)
+            log.logInfo(true)
 //            log.logRaw(true)
 //            log.logDecrypted(true)
 //            log.logDebug(true)
-//            log.logPackets(true)
+            log.logPackets(true)
 //            log.logSecrets(true)
 //            log.logCongestionControl(true)
 //            log.logStats(true)

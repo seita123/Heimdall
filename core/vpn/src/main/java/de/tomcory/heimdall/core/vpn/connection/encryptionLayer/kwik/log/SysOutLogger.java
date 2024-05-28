@@ -22,17 +22,23 @@ import java.nio.ByteBuffer;
 
 public class SysOutLogger extends BaseLogger {
 
+    private final String connectionID;
+
+    public SysOutLogger(String connectionID) {
+        this.connectionID = connectionID;
+    }
+
     @Override
     protected void log(String message) {
         synchronized (this) {
-            System.out.println(message);
+            System.out.println(connectionID + " " + message);
         }
     }
 
     @Override
     protected void log(String message, Throwable error) {
         synchronized (this) {
-            System.out.println(message);
+            System.out.println(connectionID + " " + message);
             error.printStackTrace();
         }
 
@@ -41,7 +47,7 @@ public class SysOutLogger extends BaseLogger {
     @Override
     protected void logWithHexDump(String message, byte[] data, int length) {
         synchronized (this) {
-            System.out.println(message);
+            System.out.println(connectionID + " " + message);
             System.out.println(byteToHexBlock(data, length));
         }
     }
@@ -49,7 +55,7 @@ public class SysOutLogger extends BaseLogger {
     @Override
     protected void logWithHexDump(String message, ByteBuffer data, int offset, int length) {
         synchronized (this) {
-            System.out.println(message);
+            System.out.println(connectionID + " " + message);
             System.out.println(byteToHexBlock(data, offset, length));
         }
     }

@@ -32,4 +32,6 @@ public interface ServerConnectionProxy {
     boolean isClosed();
 
     void terminate();
+
+    ServerConnectionImpl getServerConnection();
 }
