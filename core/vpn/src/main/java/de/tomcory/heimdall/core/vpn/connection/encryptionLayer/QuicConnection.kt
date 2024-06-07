@@ -2,6 +2,7 @@ package de.tomcory.heimdall.core.vpn.connection.encryptionLayer
 
 import android.os.Environment
 import de.tomcory.heimdall.core.vpn.components.ComponentManager
+import de.tomcory.heimdall.core.vpn.connection.appLayer.AppLayerConnection
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.agent15.env.PlatformMapping
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicClientConnection
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicStream
@@ -9,11 +10,11 @@ import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.Encrypt
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.core.Version
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.AckFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.ConnectionCloseFrame
-import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.CryptoFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.HandshakeDoneFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.QuicFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.StreamFrame
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.frame.StreamType
+import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.generic.VariableLengthInteger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.Logger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.log.SysOutLogger
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.ApplicationProtocolConnection
@@ -21,6 +22,7 @@ import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.Appli
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.ServerConnectionImpl
 import de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.server.ServerConnector
 import de.tomcory.heimdall.core.vpn.connection.transportLayer.TransportLayerConnection
+import net.luminis.qpack.Decoder
 import org.pcap4j.packet.Packet
 import timber.log.Timber
 import java.io.BufferedReader
@@ -31,6 +33,7 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.InetAddress
 import java.net.URI
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.cert.X509Certificate
 import java.util.Base64
@@ -65,24 +68,29 @@ class QuicConnection(
 
     private var serverFacingQuicConnection: QuicClientConnection? = null
     private var clientFacingQuicConnection: ServerConnectionImpl? = null
+    private var serverConnector: ServerConnector? = null
+
+//    private var clientFacingQuicConnection: ServerConnectionImpl? = null
 
     private var serverCertificate: X509Certificate? = null
 
     private var originalClientHello: ByteArray? = null
 
-    private var serverConnector: ServerConnector? = null
-
-    private var serverConnectionImpl: ServerConnectionImpl? = null
-
     private var isFirstPacket: Boolean = true
 
     private var mark: Monotonic.ValueTimeMark? = null
-
     private var timestamps: MutableList<Duration>? = mutableListOf()
-
     private var isFirstConnectionCloseFrame = true
-
     private var isFirstStreamFrameForwarded = true
+
+    private var savedStreamFrames: MutableList<StreamFrame> = mutableListOf()
+
+    protected val appLayerConnections = mutableMapOf<Int, AppLayerConnection>()
+
+    private val qpackDecoder: Decoder = Decoder()
+
+    private var isFirstServerResponse: Boolean = true
+    private var savedServerResponse: ByteArray? = null
 
     ////////////////////////////////////////////////////////////////////////
     ///// Inherited methods ///////////////////////////////////////////////
@@ -110,18 +118,8 @@ class QuicConnection(
             timestamps?.add(elapsed_step2!!)
             Timber.d("quic$id Server facing Quic connection established")
             println("quic$id Elapsed time - Step 2 - Kwik server established: $elapsed_step2")
-
-            val fileName = "time_measurement_data.csv"
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val filePath = downloadsDir.absolutePath + "/" + fileName
-            FileOutputStream(filePath).use { fos ->
-                timestamps?.forEach {
-                    fos.write(it.toInt(DurationUnit.MILLISECONDS))
-                }
-            }
-
         }
-        var id = id // just to see in Debug without watch
+
         when(connectionState){
             ConnectionState.NEW -> initiateKwikSetup(packet.rawData, recordType)
             ConnectionState.CLIENT_HANDSHAKE, ConnectionState.CLIENT_ESTABLISHED -> serverConnector?.receiver?.receive(packet.rawData, transportLayer.ipPacketBuilder.localAddress.hostAddress, transportLayer.localPort)
@@ -137,6 +135,11 @@ class QuicConnection(
         val recordType = parseRecordType(payload)
         println("unwrapInbound $id + RecordType $recordType")
 
+        if (isFirstServerResponse){
+            savedServerResponse = payload
+            isFirstServerResponse = false
+        }
+
 
         serverFacingQuicConnection?.receiver?.receive(payload, hostname, transportLayer.remotePort)
 //        passInboundToAppLayer(payload)
@@ -150,7 +153,7 @@ class QuicConnection(
 
     fun wrapOutbound(framesToSend: List<QuicFrame>, isShortHeader: Boolean){ // frames the kwik server received, now being forwarded by the kwik client
         for (frame: QuicFrame in framesToSend){
-            println("quic$id Applayer level?: $isShortHeader, Qutbound frame: " + frame.toString())
+//            println("quic$id Applayer level?: $isShortHeader, Qutbound frame: " + frame.toString())
             if (isShortHeader) {
                 if (frame !is HandshakeDoneFrame && frame !is AckFrame) {
                     serverFacingQuicConnection?.sender?.send(frame, EncryptionLevel.App, null)
@@ -159,11 +162,18 @@ class QuicConnection(
                     if (frame is StreamFrame) {
                         // cast to Streamframe and then check if its CIB
                         val streamFrame: StreamFrame = frame
-                        if (isFirstStreamFrameForwarded && streamFrame.streamType == StreamType.ClientInitiatedBidirectional) {
-                            val elapsed_step3 = mark?.elapsedNow()
-                            timestamps?.add(elapsed_step3!!)
-                            println("quic$id Elapsed time - Step 3 - First CIB-StreamFrame forwarded to the Server: $elapsed_step3")
-                            isFirstStreamFrameForwarded = false
+                        if (streamFrame.streamType == StreamType.ClientInitiatedBidirectional){
+                            val message = streamFrame.streamData.toString(Charsets.ISO_8859_1) //iso-8859-15
+//                            val message = streamFrame.streamData.decodeToString()
+                            println("quic$id CIU/CIB message: $message")
+                            println("quic$id bytes to the message: ${streamFrame.streamData}")
+                            passOutboundToAppLayer(streamFrame)
+                            if (isFirstStreamFrameForwarded) {
+                                val elapsed_step3 = mark?.elapsedNow()
+                                timestamps?.add(elapsed_step3!!)
+                                println("quic$id Elapsed time - Step 3 - First CIB-StreamFrame forwarded to the Server: $elapsed_step3")
+                                isFirstStreamFrameForwarded = false
+                            }
                         }
                     }
                 }
@@ -179,14 +189,27 @@ class QuicConnection(
 
     fun wrapInbound(framesToSend: List<QuicFrame>, isShortHeader: Boolean){ // frames the kwik client received, now being forwarded by the kwik server
         for (frame: QuicFrame in framesToSend){
-            println("quic$id Applayer level?: $isShortHeader, Inbound frame: " + frame.toString())
+//            println("quic$id Applayer level?: $isShortHeader, Inbound frame: " + frame.toString())
+            if (!isShortHeader && frame is ConnectionCloseFrame){
+                wrapInbound(savedServerResponse!!)
+            }
+
             if (isShortHeader) {
-                if (frame !is HandshakeDoneFrame && frame !is AckFrame) {
-                    println("quic$id Inbound Stream frames: (should be forwarded) " + frame.toString())
-//                println(serverConnector?.connection.toString() + "SIU Test connector null")
-//                serverConnector?.connection?.send(frame, EncryptionLevel.App, null, true)
-                    println("quic$id " + serverConnectionImpl.toString() + " SIU Test")
-                    serverConnectionImpl?.send(frame, EncryptionLevel.App, null, true)
+                if (frame is StreamFrame) {
+                    val streamFrame: StreamFrame = frame
+                    if (streamFrame.streamType == StreamType.ClientInitiatedBidirectional) {
+                        val message =
+                            streamFrame.streamData.toString(Charsets.UTF_8) //iso-8859-15
+//                            val message = streamFrame.streamData.decodeToString()
+                        println("quic$id CIU/CIB message: $message")
+                        println("quic$id bytes to the message: ${streamFrame.streamData}")
+                        passInboundToAppLayer(streamFrame)
+                    }
+                    if (clientFacingQuicConnection == null){
+                        savedStreamFrames.add(frame)
+                    } else {
+                        clientFacingQuicConnection?.send(frame, EncryptionLevel.App, null, true)
+                    }
                 }
 
                 // mark when the first ConnectionCloseFrame is received from the server
@@ -201,9 +224,43 @@ class QuicConnection(
     }
 
     fun setServerConnection(serverConnectionImpl: ServerConnectionImpl){
-        this.serverConnectionImpl = serverConnectionImpl
+        this.clientFacingQuicConnection = serverConnectionImpl
+        for (streamFrame: StreamFrame in savedStreamFrames){
+            serverConnectionImpl.send(streamFrame, EncryptionLevel.App, null, true)
+        }
     }
 
+    private fun passOutboundToAppLayer(streamFrame: StreamFrame) {
+
+        var appLayer = appLayerConnections[streamFrame.streamId]
+
+        if(appLayer == null) {
+            appLayer = AppLayerConnection.getInstance(streamFrame.streamData, id, this, componentManager, false, streamFrame.streamId)
+        }
+        appLayerConnections[streamFrame.streamId] = appLayer
+
+        var frameBytes = ByteArray(1500)
+        val buffer: ByteBuffer = ByteBuffer.wrap(frameBytes)
+        streamFrame.serialize(buffer)
+        frameBytes = frameBytes.sliceArray(IntRange(0, buffer.position() - 1))
+
+        appLayer.unwrapOutbound(frameBytes)
+    }
+
+    private fun passInboundToAppLayer(streamFrame: StreamFrame) {
+
+        var appLayer = appLayerConnections[streamFrame.streamId]
+
+        if(appLayer == null) {
+            appLayer = AppLayerConnection.getInstance(streamFrame.streamData, id, this, componentManager, false, streamFrame.streamId)
+        }
+
+        var frameBytes = ByteArray(1500)
+        val buffer: ByteBuffer = ByteBuffer.wrap(frameBytes)
+        streamFrame.serialize(buffer)
+        frameBytes = frameBytes.sliceArray(IntRange(0, buffer.position() - 1))
+        appLayer.unwrapInbound(frameBytes)
+    }
     ////////////////////////////////////////////////////////////////////////
     ///// Traffic handler methods /////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////
@@ -271,6 +328,8 @@ class QuicConnection(
         connectionBuilder.transportLayerConnection(transportLayer)
         connectionBuilder.heimdallQuicConnection(this)
         connectionBuilder.logger(log)
+        connectionBuilder.maxOpenPeerInitiatedUnidirectionalStreams(3);
+        connectionBuilder.maxOpenPeerInitiatedBidirectionalStreams(0);
 
         // build the server facing QUIC connection
         serverFacingQuicConnection = connectionBuilder.build()
@@ -292,6 +351,13 @@ class QuicConnection(
             Timber.e("quic$id Error while establishing the server facing QUIC connection")
             Timber.e(e)
         } finally {
+
+//            val falseControlStreamFrame = StreamFrame(2, 0, byteArrayOf(0x00, 0x00, 0x40, 0x04, 0x44, 0x33, 0x22, 0x11), true)
+//            serverFacingQuicConnection?.sender?.send(falseControlStreamFrame, EncryptionLevel.App, null)
+
+//            val pingFrame = PingFrame()
+//            serverFacingQuicConnection?.sender?.send(pingFrame, EncryptionLevel.App, null)
+
             createQuicServer()
         }
 
@@ -354,7 +420,7 @@ class QuicConnection(
                         protocol: String?,
                         quicConnection: de.tomcory.heimdall.core.vpn.connection.encryptionLayer.kwik.QuicConnection?
                     ): ApplicationProtocolConnection {
-                        return BasicConnection()
+                        return BasicConnection(id)
                     }
                 })
 
@@ -436,6 +502,47 @@ class QuicConnection(
         }
         writer.flush()
     }
+
+    private fun parseHttpData(streamFrameData: ByteArray) {
+        val buffer = ByteBuffer.wrap(streamFrameData)
+
+        val frameType = VariableLengthInteger.parse(buffer)
+        val payloadLength = VariableLengthInteger.parse(buffer)
+
+        println("quic$id debug: frame type: $frameType, payload length: $payloadLength, streamframe length: ${streamFrameData.size}")
+
+        val headerData: ByteArray = if (payloadLength <= streamFrameData.size - buffer.position()){
+            streamFrameData.sliceArray(IntRange(buffer.position(), payloadLength + 2))
+        } else {
+            println("quic$id header split in two frames?")
+            return
+        }
+
+        when(frameType){
+            1 -> parseHeader(headerData)
+            else -> println("quic$id: Not a header Frame.")
+        }
+
+    }
+
+    private fun parseHeader(headerData: ByteArray) {
+        println("trying to parse header frame")
+        val headersList: List<Map.Entry<String, String>> = qpackDecoder.decodeStream(
+            ByteArrayInputStream(headerData)
+        )
+
+        for (header: Map.Entry<String, String> in headersList) {
+            println("quic$id: headers: $header")
+        }
+//        val headersMap = headersList.stream()
+//            .collect(
+//                Collectors.toMap<Any, Any, Any>(
+//                    Function<Any, Any> { java.util.Map.Entry.key },
+//                    this::mapValue,
+//                    this::mergeValues
+//                )
+//            )
+    }
 }
 
 
@@ -486,9 +593,15 @@ private enum class ConnectionState {
     CLOSED
 }
 
-class BasicConnection(): ApplicationProtocolConnection{
+class BasicConnection(id: Int): ApplicationProtocolConnection{
+
+    var quicid = -1
+
+    init {
+        quicid = id
+    }
     override fun acceptPeerInitiatedStream(quicStream: QuicStream) {
-        Thread { handleIncomingRequest(quicStream) }.start()
+//        Thread { handleIncomingRequest(quicStream) }.start()
 //        handleIncomingRequest(quicStream)
     }
 
@@ -501,13 +614,13 @@ class BasicConnection(): ApplicationProtocolConnection{
         try {
             while (i<5) {
                 val line = inputStream.readLine()
-                println("Received $line")
+                println("quic$quicid Received $line")
                 i += 1
             }
 
             // zweite Variante Versuch
             val bytesRead = quicStream.inputStream.readBytes()
-            println("Read echo request with " + bytesRead.size + " bytes of data. The Bytes read: " + bytesRead)
+            println("quic$quicid Read echo request with " + bytesRead.size + " bytes of data. The Bytes read: " + bytesRead)
 
         } catch (e: java.lang.Exception) {
             // Done

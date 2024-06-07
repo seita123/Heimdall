@@ -95,6 +95,9 @@ public class GlobalPacketAssembler {
         for (EncryptionLevel level: enabledLevels) {
             PacketAssembler assembler = this.packetAssembler[level.ordinal()];
             if (assembler != null) {
+                if (level == App){
+                    maxDatagramSize -= 50;   // Todo: check if this really works and if not redo it and just leave the BufferOverflow mistake
+                }
                 Optional<SendItem> item = assembler.assemble(remaining, maxDatagramSize - size, sourceConnectionId, destinationConnectionId);
                 if (item.isPresent()) {
                     packets.add(item.get());

@@ -201,8 +201,6 @@ public class ServerConnector {
         data.get(dcid);
         data.rewind();
         Optional<ServerConnectionProxy> connection = connectionRegistry.isExistingConnection(clientAddress, dcid);
-//        connection.ifPresentOrElse(c -> c.parsePackets(0, Instant.now(), data, clientAddress),
-//                () -> log.warn("Discarding short header packet addressing non existent connection " + ByteUtils.bytesToHex(dcid)));
 
         if (connection.isPresent()){
             connection.get().parsePackets(0, Instant.now(), data, clientAddress);
@@ -240,8 +238,6 @@ public class ServerConnector {
         Version version = Version.parse(versionValue);
         ServerConnectionProxy connectionCandidate = new ServerConnectionCandidate(context, version, clientAddress, scid, originalDcid,
                 serverConnectionFactory, connectionRegistry, log, heimdallQuicConnection);
-//        ServerConnectionCandidate serverConnectionCandidate = (ServerConnectionCandidate) connectionCandidate;
-//        serverConnection = serverConnectionCandidate.serverConnection;
         // Register new connection now with the original connection id, as retransmitted initial packets with the
         // same original dcid might be received (for example when the server response does not reach the client).
         // Such packets must _not_ lead to new connection candidate. Moreover, if it is an initial packet, it must be

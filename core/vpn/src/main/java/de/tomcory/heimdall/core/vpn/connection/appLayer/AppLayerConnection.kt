@@ -75,5 +75,13 @@ abstract class AppLayerConnection(
                 RawConnection(id, encryptionLayer, componentManager)
             }
         }
+
+        fun getInstance(payload: ByteArray, id: Int, encryptionLayer: EncryptionLayerConnection, componentManager: ComponentManager, isInbound: Boolean = false, streamId: Int): AppLayerConnection {
+            return try {
+                Http3Connection(id, encryptionLayer, componentManager, streamId)
+            } catch (e: Exception){
+                RawConnection(id, encryptionLayer, componentManager)
+            }
+        }
     }
 }

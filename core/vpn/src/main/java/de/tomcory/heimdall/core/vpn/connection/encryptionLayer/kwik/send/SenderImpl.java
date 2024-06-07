@@ -421,13 +421,15 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
         
         DatagramPacket datagram = new DatagramPacket(datagramData, buffer.position(), peerAddress.getAddress(), peerAddress.getPort());
 
+        byte[] datagramDataRealSize = Arrays.copyOfRange(datagramData, 0, buffer.position());
+
         Instant timeSent = clock.instant();
 
         if (isServerSender){
-            transportLayerConnection.wrapInbound(datagramData);
+            transportLayerConnection.wrapInbound(datagramDataRealSize);
 //            System.out.println("Kwik Server sends: " + Arrays.toString(datagramData));
         } else {
-            transportLayerConnection.wrapOutbound(datagramData);
+            transportLayerConnection.wrapOutbound(datagramDataRealSize);
 //            System.out.println("Kwik Client sends: " + Arrays.toString(datagramData));
         }
         // socket.send(datagram);
@@ -466,7 +468,24 @@ public class SenderImpl implements Sender, CongestionControlEventListener {
         }
         byte[] srcCid = connection.getSourceConnectionId();
         byte[] destCid = connection.getDestinationConnectionId();
-        return packetAssembler.assemble(remainingCwnd, currentMaxPacketSize, srcCid, destCid);
+
+
+        List<SendItem> test = packetAssembler.assemble(remainingCwnd, currentMaxPacketSize, srcCid, destCid);
+
+        if(!test.isEmpty()){
+            try{
+                if (test.get(0).getPacket().getClass() == ShortHeaderPacket.class){
+                    byte[] tesssst = test.get(0).getPacket().generatePacketBytes(connectionSecrets.getOwnAead(EncryptionLevel.App));
+                    int test_size = test.get(0).getPacket().getSize();
+                    System.out.println("test_size: " + test_size);
+                }
+            } catch (Exception e){
+                System.out.println("test size not possible -> prob initial packet");
+            }
+        }
+        return test;
+
+//        return packetAssembler.assemble(remainingCwnd, currentMaxPacketSize, srcCid, destCid);
     }
 
     private Instant earliest(Instant instant1, Instant instant2) {

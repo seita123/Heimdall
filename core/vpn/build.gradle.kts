@@ -40,4 +40,6 @@ dependencies {
     implementation ("org.glassfish:javax.json:1.1.4")
     implementation ("commons-cli:commons-cli:1.4")
     implementation ("com.google.firebase:firebase-crashlytics-buildtools:2.9.9")
+    implementation ("tech.kwik:qpack:1.0.2")
+
 }

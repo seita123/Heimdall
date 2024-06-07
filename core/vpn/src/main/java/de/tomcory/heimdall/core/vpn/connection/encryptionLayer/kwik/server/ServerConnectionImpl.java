@@ -381,7 +381,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
             applicationProtocolRegistry.startApplicationProtocolConnection(negotiatedApplicationProtocol, this);
 
             log.info("Server accepted early data");
-            return true;
+            return false;  // todo: reset to true if this is not working
         }
         else {
             return false;
@@ -433,7 +433,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
         //  are all discarded."
         bytesReceived += data.remaining();
         if (! addressValidated) {
-            sender.setAntiAmplificationLimit(3 * (int) bytesReceived);
+            sender.setAntiAmplificationLimit(10 * (int) bytesReceived); // todo:reset 10 to 3 if this is nt helpful or makes problems
         }
 
         super.parseAndProcessPackets(datagram, timeReceived, data, parsedPacket);
