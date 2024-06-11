@@ -31,16 +31,7 @@ class Http3Connection(
     encryptionLayer,
     componentManager
 ) {
-    /**
-     * Caches payloads if they don't contain the end of the headers. Once the end of the headers is found (double CRLF), the message is handled normally (chunked, overflowing, or persisted).
-     */
-    private var previousPayload: ByteArray = ByteArray(0)
-
     private val qpackDecoder: Decoder = Decoder()
-
-    private var overflowing: Boolean = false
-
-    private var endOfFrame: Boolean = false
 
     private var outboundHeaders: MutableMap<String, String> = mutableMapOf()
     private var inboundHeaders: MutableMap<String, String> = mutableMapOf()
@@ -49,9 +40,6 @@ class Http3Connection(
     private var inboundBody: String = ""
 
     private val maximumMessageSize = 1024 * 1024 // 1 MB
-
-    private var previousType: Int = -1
-    private var previousLength: Int = -1
 
     private var outboundFrames: MutableList<StreamFrame> = mutableListOf()
     private var inboundFrames: MutableList<StreamFrame> = mutableListOf()
@@ -63,13 +51,24 @@ class Http3Connection(
 
     init {
         if(id > 0) {
-            Timber.d("http$id Creating HTTP/3 connection to ${encryptionLayer.transportLayer.ipPacketBuilder.remoteAddress.hostAddress}:${encryptionLayer.transportLayer.remotePort} (${encryptionLayer.transportLayer.remoteHost})")
+            Timber.d("http$streamId for quic$id Creating HTTP/3 connection to ${encryptionLayer.transportLayer.ipPacketBuilder.remoteAddress.hostAddress}:${encryptionLayer.transportLayer.remotePort} (${encryptionLayer.transportLayer.remoteHost})")
         }
     }
+
+    /**
+     * Processes and unwraps the outbound payload, handling the QUIC stream frames.
+     *
+     * @param payload The outbound payload as a byte array.
+     *
+     * This function wraps the payload in a ByteBuffer and parses it into a `StreamFrame`.
+     * The parsed stream frame is added to the list of outbound frames. If the stream frame
+     * is marked as final, the function sorts the frames by offset, concatenates their data,
+     * and then calls `parseHttpData` to process the HTTP data.
+     */
     override fun unwrapOutbound(payload: ByteArray) {
         val buffer = ByteBuffer.wrap(payload)
         val streamFrame: StreamFrame = StreamFrame().parse(buffer, NullLogger())
-//        parseHttpData(streamFrame.streamData, true)
+
         outboundFrames.add(streamFrame)
         if (streamFrame.isFinal){
             outboundFrames.sortedBy { t -> t.offset }
@@ -85,13 +84,22 @@ class Http3Connection(
     }
 
     override fun unwrapOutbound(packet: Packet) {
-        TODO("Not yet implemented")
+        // Not needed in this implementation.
     }
 
+    /**
+     * Processes and unwraps the inbound payload, handling the QUIC stream frames.
+     *
+     * @param payload The inbound payload as a byte array.
+     *
+     * This function wraps the payload in a ByteBuffer and parses it into a `StreamFrame`.
+     * The parsed stream frame is added to the list of inbound frames. If the stream frame
+     * is marked as final, the function sorts the frames by offset, concatenates their data,
+     * and then calls `parseHttpData` to process the HTTP data.
+     */
     override fun unwrapInbound(payload: ByteArray) {
         val buffer = ByteBuffer.wrap(payload)
         val streamFrame: StreamFrame = StreamFrame().parse(buffer, NullLogger())
-//        parseHttpData(streamFrame.streamData, false)
 
         inboundFrames.add(streamFrame)
         if (streamFrame.isFinal){
@@ -105,6 +113,21 @@ class Http3Connection(
         }
     }
 
+    /**
+     * Parses the HTTP data from the given payload, handling different HTTP frame types.
+     *
+     * @param payload The HTTP data payload as a byte array.
+     * @param isOutbound A boolean indicating whether the data is outbound or inbound.
+     *
+     * This function wraps the payload in a ByteBuffer and parses the frame type and length
+     * using `VariableLengthInteger`. It extracts the frame data and processes it based on
+     * the frame type. For data frames (type 0), it decompresses and appends the data to
+     * either the outbound or inbound body. For header frames (type 1), it calls `parseHeader`.
+     * If the payload contains additional data, the function recursively processes the remaining
+     * payload. Once all data is processed, it calls `persistMessage` to persist the message.
+     *
+     * If an exception occurs during parsing, it logs the error and returns.
+     */
     private fun parseHttpData(payload: ByteArray, isOutbound: Boolean){
         try {
             val buffer = ByteBuffer.wrap(payload)
@@ -130,72 +153,20 @@ class Http3Connection(
             }
 
         } catch (e: Exception){
-            println("error while parsing http frames: $e")
+            Timber.e("Http3$id Error while parsing http frames: $e")
             return
         }
     }
 
-    private fun parseHttpDataDepricated(streamFrameData: ByteArray, isOutbound: Boolean) {
-
-        val assembledPayload: ByteArray
-        if (overflowing) {
-            assembledPayload = previousPayload + streamFrameData
-            previousPayload = byteArrayOf()
-        } else {
-            assembledPayload = streamFrameData
-        }
-
-        val buffer = ByteBuffer.wrap(assembledPayload)
-
-        try {
-
-            val frameType = VariableLengthInteger.parse(buffer)
-            val payloadLength = VariableLengthInteger.parse(buffer)
-
-//            println("quic$id debug: frame type: $frameType, payload length: $payloadLength, streamframe length: ${streamFrameData.size}")
-
-            if (payloadLength > assembledPayload.size - buffer.position()) {
-                Timber.w("http$id incomplete headers or message")
-                overflowing = true
-                previousType = frameType
-                previousLength = payloadLength
-                previousPayload += assembledPayload
-                return
-            } else {
-                if (overflowing) {
-                    Timber.w("http$id incomplete headers resolved (header length: )")
-                    overflowing = false
-                }
-                val frameData = assembledPayload.sliceArray(
-                    IntRange(
-                        buffer.position(),
-                        payloadLength + buffer.position() - 1
-                    )
-                )
-                when (frameType) {
-                    0 -> if (isOutbound) outboundBody += unzip(frameData) else inboundBody += unzip(frameData)
-                    1 -> parseHeader(frameData, isOutbound)
-                    else -> Timber.w("http$id: Unexpected HTTP frame (not header or data frame)")
-                }
-
-                if (payloadLength < assembledPayload.size - buffer.position()) {
-                    val nextFrameData = assembledPayload.sliceArray(
-                        IntRange(
-                            buffer.position() + payloadLength,
-                            assembledPayload.size - 1
-                        )
-                    )
-                    parseHttpDataDepricated(nextFrameData, isOutbound)
-                } else {
-                    persistMessage(isOutbound)
-                }
-            }
-
-        } catch (e: Exception){
-            return
-        }
-    }
-
+    /**
+     * Parses the HTTP headers from the given header data.
+     *
+     * @param headerData The byte array containing the HTTP header data.
+     * @param isOutbound A boolean indicating whether the headers are for outbound or inbound data.
+     *
+     * This function decodes the header data using a `qpackDecoder` and retrieves a list of headers.
+     * Each header is then added to either the outbound or inbound headers map, depending on the value of `isOutbound`.
+     */
     private fun parseHeader(headerData: ByteArray, isOutbound: Boolean) {
         try {
             val headersList: List<Map.Entry<String, String>> = qpackDecoder.decodeStream(
@@ -214,6 +185,17 @@ class Http3Connection(
 
     }
 
+    /**
+     * Unzips the given compressed byte array and returns the decompressed string.
+     *
+     * @param compressed The byte array containing the compressed data.
+     * @return The decompressed string, or the original byte array as a string if decompression fails or the data is not compressed.
+     *
+     * This function checks if the given byte array is null or empty and returns an empty string in such cases.
+     * If the data is not compressed, it returns the data as a string. If the data is compressed, it attempts to
+     * decompress it using a `GZIPInputStream` and returns the decompressed string. If an `IOException` occurs
+     * during decompression, it returns the original byte array as a string.
+     */
     private fun unzip(compressed: ByteArray?): String {
         if (compressed == null || compressed.isEmpty()){
             return ""
@@ -242,10 +224,30 @@ class Http3Connection(
         }
     }
 
+    /**
+     * Checks if the given byte array is in GZIP compressed format.
+     *
+     * @param compressed The byte array to check.
+     * @return `true` if the byte array is GZIP compressed, `false` otherwise.
+     *
+     * This function checks the first two bytes of the given byte array against the GZIP magic number to determine
+     * if the data is compressed using GZIP.
+     */
     private fun isZipped(compressed: ByteArray): Boolean {
         return compressed[0] == GZIPInputStream.GZIP_MAGIC.toByte() && compressed[1] == (GZIPInputStream.GZIP_MAGIC shr 8).toByte()
     }
 
+    /**
+     * Persists the HTTP request or response message to the database.
+     *
+     * @param isOutbound A boolean indicating whether the message is outbound (request) or inbound (response).
+     *
+     * This function launches a coroutine to persist the HTTP request or response message to the database. For outbound messages,
+     * it creates a new HTTP request record in the database and sends the request ID to a channel. For inbound messages, it receives
+     * the request ID from the channel and creates a new HTTP response record associated with that request ID. It handles large message
+     * content by storing a placeholder if the content exceeds a predefined maximum size. After persisting the message, it clears the
+     * corresponding frames, headers, and body data to save memory.
+     */
     private fun persistMessage(isOutbound: Boolean) {
 
         CoroutineScope(Dispatchers.IO).launch {

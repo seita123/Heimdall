@@ -163,7 +163,7 @@ class QuicConnection(
      * Wraps and processes the outbound QUIC frames to be sent by the kwik client.
      *
      * @param framesToSend The list of QUIC frames that were received.
-     * @param isShortHeader A boolean indicating whether the received packet was a short header (Applevel packet).
+     * @param isShortHeader A boolean indicating whether the received packet has a short header (Applevel packet).
      *
      * This function processes each frame in the given list of frames. If the frame is not of type
      * HandshakeDoneFrame, AckFrame, or CryptoFrame, it forwards the frame using the `serverFacingQuicConnection`.
@@ -198,6 +198,17 @@ class QuicConnection(
         }
     }
 
+    /**
+     * Wraps and processes the inbound QUIC frames to be sent by the kwik server.
+     *
+     * @param framesToSend The list of QUIC frames to be sent.
+     * @param isShortHeader A boolean indicating whether the received packet has a short header (Applevel packet).
+     *
+     * This function processes each frame in the given list of frames. If the frame is not of type AckFrame,
+     * HandshakeDoneFrame, or CryptoFrame, it either saves the frame or forwards it using the
+     * `clientFacingQuicConnection` if the connection is already available. Additionally, if the
+     * frame is a `StreamFrame` of type ClientInitiatedBidirectional, it is passed to the application layer.
+     */
     fun wrapInbound(framesToSend: List<QuicFrame>, isShortHeader: Boolean){ // frames the kwik client received, now being forwarded by the kwik server
         for (frame: QuicFrame in framesToSend){
             if (!isShortHeader && frame is ConnectionCloseFrame){
@@ -222,6 +233,15 @@ class QuicConnection(
         }
     }
 
+    /**
+     * Sets the server connection for the QUIC client and processes any saved frames.
+     *
+     * @param serverConnectionImpl The server connection implementation to be set.
+     *
+     * This function assigns the given `ServerConnectionImpl` to the `clientFacingQuicConnection` property.
+     * It then processes any frames that were saved prior to the server connection being established,
+     * sending each frame using the new server connection.
+     */
     fun setServerConnection(serverConnectionImpl: ServerConnectionImpl){
         this.clientFacingQuicConnection = serverConnectionImpl
         for (frame: QuicFrame in savedFrames){
@@ -229,6 +249,15 @@ class QuicConnection(
         }
     }
 
+    /**
+     * Passes the outbound stream frame to the application layer.
+     *
+     * @param streamFrame The stream frame to pass.
+     *
+     * This function checks if there is an existing `AppLayerConnection` for the given stream ID. If not, it creates a new
+     * `AppLayerConnection` instance. The function then serializes the `StreamFrame` into a byte array and passes this data
+     * to the application layer's `unwrapOutbound` method for further processing.
+     */
     private fun passOutboundToAppLayer(streamFrame: StreamFrame) {
 
         var appLayer = appLayerConnections[streamFrame.streamId]
@@ -246,6 +275,15 @@ class QuicConnection(
         appLayer.unwrapOutbound(frameBytes)
     }
 
+    /**
+     * Passes the inbound stream frame to the application layer.
+     *
+     * @param streamFrame The stream frame to pass.
+     *
+     * This function checks if there is an existing `AppLayerConnection` for the given stream ID. If not, it creates a new
+     * `AppLayerConnection` instance. The function then serializes the `StreamFrame` into a byte array and passes this data
+     * to the application layer's `unwrapInbound` method for further processing.
+     */
     private fun passInboundToAppLayer(streamFrame: StreamFrame) {
 
         var appLayer = appLayerConnections[streamFrame.streamId]
@@ -265,6 +303,16 @@ class QuicConnection(
     ///// kwik setup methods //////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////
 
+    /**
+     * Initiates the setup process for the QUIC connection using the given record.
+     *
+     * @param record The byte array representing the QUIC record.
+     * @param recordType The type of the QUIC record.
+     *
+     * This function checks the version of QUIC being used by analyzing the given record. If the version is not V1,
+     * it passes the record to the application layer, and sets `isV1` to false. If the record is of type INITIAL,
+     * it saves the record as the original client hello and proceeds to create a QUIC client using the record.
+     */
     private fun initiateKwikSetup(record: ByteArray, recordType: RecordType) {
 
         // check which Version of QUIC is being used
@@ -282,12 +330,24 @@ class QuicConnection(
                         originalClientHello = record
                         createQUICClient(record)
                     }
-                    else -> println("Not an initial RecordType: $recordType") // Platzhalter bis ich mich darum kümmere was ich mit anderen Records mache.
+                    else -> Timber.w("quic$id Unexpected non-initial RecordType at the beginning of a connection: $recordType")
                 }
             }
         }
     }
 
+    /**
+     * Creates and establishes a QUIC client connection using the given record.
+     *
+     * @param record The byte array representing the QUIC record.
+     *
+     * This function initializes the QUIC client setup. It configures the connection
+     * parameters, including the URI, logging settings, and application protocol.
+     * The function then attempts to establish the server-facing QUIC connection, performing
+     * the handshake process and logging the elapsed time for the connection establishment.
+     * If the connection is successfully established, it updates the connection state and retrieves
+     * the server certificate. Finally, it calls `createQuicServer` to set up the QUIC server.
+     */
     private fun createQUICClient(record: ByteArray){
         println("Creating QUIC Client")
 
@@ -298,7 +358,6 @@ class QuicConnection(
         val connectionBuilder = QuicClientConnection.newBuilder()
         val addr = InetAddress.getByName(hostname)
         val host = addr.hostName
-//        val url = URL(host)
         val address = "//" + host + ":" + transportLayer.remotePort
         val uri = URI(address)
 
@@ -341,6 +400,14 @@ class QuicConnection(
         }
     }
 
+    /**
+     * Creates and establishes a client-facing QUIC server connection.
+     *
+     * This function generates a fake server certificate using the `mitmManager`, configures the
+     * `ServerConnector` with the necessary parameters including supported QUIC versions, logging,
+     * and application protocol, and starts the server connector. It also begins the handshake
+     * process by receiving the original client hello message.
+     */
     private fun createQuicServer(){
 
         try {
@@ -414,10 +481,17 @@ class QuicConnection(
     ///// Utility methods /////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////
 
-    // determine if short or long header and if long header which packet type
+    /**
+     * Determines if the QUIC packet has a short or long header and, if it has a long header, identifies the packet type.
+     *
+     * @param record The byte array representing the QUIC packet.
+     * @return The determined `RecordType` of the QUIC packet.
+     *
+     * This function examines the first byte of the given QUIC packet to determine if it has a short or long header.
+     * For long header packets, it further analyzes the packet type and returns the corresponding `RecordType`.
+     * If the header is short, it returns `RecordType.APP`.
+     */
     private fun parseRecordType(record: ByteArray): RecordType {
-        // Todo: this is one for QUIC Version 1 --> Adapt for V2
-
         // get the bits from the first byte
         val firstByte = record[0]
 
@@ -436,17 +510,6 @@ class QuicConnection(
             RecordType.APP
         }
     }
-
-    fun OutputStream.writeCsv(times: MutableList<Duration>) {
-        val writer = bufferedWriter()
-//        writer.write(""""Year", "Score", "Title"""")
-//        writer.newLine()
-        times.forEach {
-            writer.write("${it}\"")
-            writer.newLine()
-        }
-        writer.flush()
-    }
 }
 
 
@@ -454,12 +517,38 @@ class QuicConnection(
 ///// Internal enums //////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////
 
+/**
+ * Enum representing the different types of QUIC records.
+ */
 private enum class RecordType {
+    /**
+     * Initial packet type used for the first packets of a new connection.
+     */
     INITIAL,
+
+    /**
+     * Zero Round-Trip Time (0-RTT) packet type used for early data transmission.
+     */
     ZERO_RTT,
+
+    /**
+     * Handshake packet type used during the handshake phase of the connection.
+     */
     HANDSHAKE,
+
+    /**
+     * Retry packet type used to indicate that the client should retry the connection attempt.
+     */
     RETRY,
+
+    /**
+     * Application data packet type used for regular application data transmission.
+     */
     APP,
+
+    /**
+     * Invalid packet type used to indicate an unrecognized or malformed packet.
+     */
     INVALID,
 }
 
@@ -490,37 +579,13 @@ private enum class ConnectionState {
     CLIENT_ESTABLISHED,
 }
 
-class BasicConnection(id: Int): ApplicationProtocolConnection{
-
-    private var quicid = -1
-
-    init {
-        quicid = id
-    }
-    override fun acceptPeerInitiatedStream(quicStream: QuicStream) {
-//        Thread { handleIncomingRequest(quicStream) }.start()
-//        handleIncomingRequest(quicStream)
-    }
-
-    private fun handleIncomingRequest(quicStream: QuicStream) {
-
-        val inputStream = BufferedReader(InputStreamReader(quicStream.getInputStream(), "UTF-8"))
-//        val streamData = inputStream.readText()
-//        println("Stream Data as Text?: " + streamData)
-        var i = 0
-        try {
-            while (i<5) {
-                val line = inputStream.readLine()
-                println("quic$quicid Received $line")
-                i += 1
-            }
-
-            // zweite Variante Versuch
-            val bytesRead = quicStream.inputStream.readBytes()
-            println("quic$quicid Read echo request with " + bytesRead.size + " bytes of data. The Bytes read: " + bytesRead)
-
-        } catch (e: java.lang.Exception) {
-            // Done
-        }
-    }
-}
+/**
+ * Basic implementation of the `ApplicationProtocolConnection` interface.
+ *
+ * This class serves as a requirement to establish the `ServerConnector`.
+ * It does not contain any specific functionality for the application layer,
+ * as the application layer functionality is handled by forwarding the received frames.
+ *
+ * @param id The connection ID.
+ */
+class BasicConnection(id: Int): ApplicationProtocolConnection{}
