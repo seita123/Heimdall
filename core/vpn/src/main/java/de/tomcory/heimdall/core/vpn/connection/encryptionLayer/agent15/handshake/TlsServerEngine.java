@@ -257,9 +257,9 @@ public class TlsServerEngine extends TlsEngine implements ServerMessageProcessor
         state.computeHandshakeSecrets();
         statusHandler.handshakeSecretsKnown();
 
-        if (earlyDataAccepted) {
-            serverExtensions.add(new EarlyDataExtension());
-        }
+//        if (earlyDataAccepted) {
+//            serverExtensions.add(new EarlyDataExtension());
+//        }
         EncryptedExtensions encryptedExtensions = new EncryptedExtensions(serverExtensions);
         serverMessageSender.send(encryptedExtensions);
         transcriptHash.record(encryptedExtensions);

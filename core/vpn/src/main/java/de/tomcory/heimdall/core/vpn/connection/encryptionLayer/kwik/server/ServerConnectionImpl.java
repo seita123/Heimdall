@@ -381,7 +381,7 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
             applicationProtocolRegistry.startApplicationProtocolConnection(negotiatedApplicationProtocol, this);
 
             log.info("Server accepted early data");
-            return false;  // todo: reset to true if this is not working
+            return true;
         }
         else {
             return false;

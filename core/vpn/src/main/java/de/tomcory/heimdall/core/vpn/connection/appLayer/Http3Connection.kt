@@ -42,8 +42,8 @@ class Http3Connection(
 
     private var endOfFrame: Boolean = false
 
-    var outboundHeaders: MutableMap<String, String> = mutableMapOf()
-    var inboundHeaders: MutableMap<String, String> = mutableMapOf()
+    private var outboundHeaders: MutableMap<String, String> = mutableMapOf()
+    private var inboundHeaders: MutableMap<String, String> = mutableMapOf()
 
     private var outboundBody: String = ""
     private var inboundBody: String = ""
@@ -55,7 +55,6 @@ class Http3Connection(
 
     private var outboundFrames: MutableList<StreamFrame> = mutableListOf()
     private var inboundFrames: MutableList<StreamFrame> = mutableListOf()
-
 
     /**
      * Channel for passing the request ID from the HTTP request insertion coroutine to the HTTP response insertion coroutine.
@@ -73,9 +72,7 @@ class Http3Connection(
 //        parseHttpData(streamFrame.streamData, true)
         outboundFrames.add(streamFrame)
         if (streamFrame.isFinal){
-            println("unsorted outbound frames: " + outboundFrames)
             outboundFrames.sortedBy { t -> t.offset }
-            println("sorted outbound frames: " + outboundFrames)
 
             var streamData = byteArrayOf()
             val it = outboundFrames.listIterator()
@@ -83,7 +80,7 @@ class Http3Connection(
                 streamData += frame.streamData
             }
 
-            parseHttpData2(streamData, true)
+            parseHttpData(streamData, true)
         }
     }
 
@@ -98,20 +95,17 @@ class Http3Connection(
 
         inboundFrames.add(streamFrame)
         if (streamFrame.isFinal){
-            println("unsorted inbound frames: " + inboundFrames)
             inboundFrames.sortedBy { t -> t.offset }
-            println("sorted inbound frames: " + inboundFrames)
 
             var streamData = byteArrayOf()
             for (frame: StreamFrame in inboundFrames){
                 streamData += frame.streamData
             }
-
-            parseHttpData2(streamData, false)
+            parseHttpData(streamData, false)
         }
     }
 
-    private fun parseHttpData2(payload: ByteArray, isOutbound: Boolean){
+    private fun parseHttpData(payload: ByteArray, isOutbound: Boolean){
         try {
             val buffer = ByteBuffer.wrap(payload)
 
@@ -130,17 +124,18 @@ class Http3Connection(
             val remainingPayload = payload.sliceArray(IntRange(buffer.position() + frameLength, payload.size - 1))
 
             if (remainingPayload.isNotEmpty()){
-                parseHttpData2(remainingPayload, isOutbound)
+                parseHttpData(remainingPayload, isOutbound)
+            } else {
+                persistMessage(isOutbound)
             }
 
-            persistMessage(isOutbound)
-
         } catch (e: Exception){
+            println("error while parsing http frames: $e")
             return
         }
     }
 
-    private fun parseHttpData(streamFrameData: ByteArray, isOutbound: Boolean) {
+    private fun parseHttpDataDepricated(streamFrameData: ByteArray, isOutbound: Boolean) {
 
         val assembledPayload: ByteArray
         if (overflowing) {
@@ -157,7 +152,7 @@ class Http3Connection(
             val frameType = VariableLengthInteger.parse(buffer)
             val payloadLength = VariableLengthInteger.parse(buffer)
 
-            println("quic$id debug: frame type: $frameType, payload length: $payloadLength, streamframe length: ${streamFrameData.size}")
+//            println("quic$id debug: frame type: $frameType, payload length: $payloadLength, streamframe length: ${streamFrameData.size}")
 
             if (payloadLength > assembledPayload.size - buffer.position()) {
                 Timber.w("http$id incomplete headers or message")
@@ -190,7 +185,7 @@ class Http3Connection(
                             assembledPayload.size - 1
                         )
                     )
-                    parseHttpData(nextFrameData, isOutbound)
+                    parseHttpDataDepricated(nextFrameData, isOutbound)
                 } else {
                     persistMessage(isOutbound)
                 }
@@ -202,13 +197,11 @@ class Http3Connection(
     }
 
     private fun parseHeader(headerData: ByteArray, isOutbound: Boolean) {
-//        println("trying to parse header frame")
         try {
             val headersList: List<Map.Entry<String, String>> = qpackDecoder.decodeStream(
                 ByteArrayInputStream(headerData)
             )
             for (header: Map.Entry<String, String> in headersList) {
-                println("http$id: is Outbound: $isOutbound headers: $header")
                 if (isOutbound){
                     outboundHeaders[header.key] = header.value
                 } else{
@@ -283,8 +276,8 @@ class Http3Connection(
                     requestId = requestId,
                     timestamp = System.currentTimeMillis(),
                     headers = inboundHeaders,
-                    content = if(outboundBody.length > maximumMessageSize) "<too large: ${outboundBody.length} bytes>" else outboundBody,
-                    contentLength = outboundBody.length,
+                    content = if(inboundBody.length > maximumMessageSize) "<too large: ${inboundBody.length} bytes>" else inboundBody,
+                    contentLength = inboundBody.length,
                     statusCode = 0,           // statusLine?.get(1)?.toIntOrNull() ?: 0,
                     statusMsg =  "",            // statusLine?.get(2) ?: "",
                     remoteHost = encryptionLayer.transportLayer.remoteHost ?: "",
@@ -296,16 +289,18 @@ class Http3Connection(
                     initiatorPkg = encryptionLayer.transportLayer.appPackage ?: ""
                 )
             }
+
+            // clear the saved data to save memory
+            if (isOutbound){
+                outboundFrames.clear()
+                outboundHeaders.clear()
+                outboundBody = ""
+            } else {
+                inboundFrames.clear()
+                inboundHeaders.clear()
+                inboundBody = ""
+            }
         }
 
-//        if (isOutbound){
-//            outboundFrames.clear()
-//            outboundHeaders.clear()
-//            outboundBody = ""
-//        } else {
-//            inboundFrames.clear()
-//            inboundHeaders.clear()
-//            inboundBody = ""
-//        }
     }
 }
